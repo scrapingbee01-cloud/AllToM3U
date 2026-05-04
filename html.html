@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M3U – HTML to Playlist</title>
+  <style>
+    :root { --bg:#f7f7f8; --card:#fff; --text:#222; --muted:#666; --accent:#0b5fff; --accent-muted:#4f82ff; --border:#e7e7ea; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 20px}
+    h1{font-size:28px;margin:0 0 6px}
+    p.sub{color:var(--muted);margin:0 0 18px}
+
+    /* breadcrumb */
+    .breadcrumb{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .home-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--accent);font-weight:700}
+    .home-link:hover{opacity:.85}
+    .breadcrumb .sep{color:#b8bfd3}
+    h3.current{margin:0;font-size:16px;color:var(--accent-muted);font-weight:700}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:16px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:900px){.grid-2{grid-template-columns:1fr 1fr}}
+
+    label{font-weight:600;margin-bottom:6px;display:block}
+    input[type="text"], input[type="url"], input[type="number"], textarea{
+      width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px
+    }
+    textarea{min-height:140px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    input[disabled]{background:#f0f0f2;color:#8a8a92}
+    .opt{display:flex;align-items:center;gap:8px}
+    .opt input[type="checkbox"]{width:18px;height:18px}
+
+    .actions{display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    button{appearance:none;border:0;background:var(--accent);color:#fff;border-radius:10px;font-weight:700;cursor:pointer}
+    /* même dimensions pour Parse et Download */
+    .btn{min-width:240px;height:44px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center}
+    .btn-ghost{background:#eef3ff;color:#1b3ea3}
+
+    .muted{color:var(--muted);font-size:13px}
+    .ok{color:#2e7d32;font-size:14px;display:none;margin-left:8px}
+    .list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff}
+    .section-title{font-weight:800;margin:8px 0 6px}
+    .disabled-block{opacity:.6;}
+
+    /* grille spéciale pour l’alignement “How many hosts” ↔ “Host 1” */
+    .hosts-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr; /* même largeur que la grille au-dessus */
+      gap:12px;
+      align-items:end; /* aligne le bas des champs (le “1” et “https://example.com”) */
+    }
+    .hosts-grid .span-2{grid-column:1 / -1}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a class="home-link" href="javascript:void(0)" onclick="history.back()">Home</a>
+      <span class="sep">›</span>
+      <h3 class="current">HTML to M3U</h3>
+    </nav>
+
+    <h1>HTML → M3U</h1>
+    <p class="sub">Use <b>Paste HTML</b> or <b>Upload .html</b>. Optional host(s) filter and series search. Single-style output with custom title, season, and shared logo (if enabled).</p>
+
+    <!-- SOURCE INPUT -->
+    <div class="card">
+      <div class="grid-2 grid">
+        <div>
+          <label for="htmlInput">Paste HTML</label>
+          <textarea id="htmlInput" placeholder="&lt;a href=&quot;https://example.com/video_01.mkv&quot;&gt;Title 01&lt;/a&gt;...
+&lt;img src=&quot;https://example.com/poster.jpg&quot;&gt;"></textarea>
+        </div>
+        <div>
+          <label for="fileInput">Or upload .html</label>
+          <input id="fileInput" type="file" accept=".html,.htm,text/html" />
+          <p class="muted">Everything is processed locally in your browser.</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="parseBtn" class="btn btn-ghost">Parse</button>
+        <span id="parseInfo" class="muted"></span>
+      </div>
+
+      <!-- FILTER BY HOST(S) (réorganisé pour aligner le “1” avec “https://example.com”) -->
+      <div class="hosts-grid" style="margin-top:10px">
+        <div>
+          <label for="filterCount" class="muted">How many hosts (1–5)</label>
+          <input id="filterCount" type="number" min="1" max="5" value="1" disabled>
+        </div>
+        <div id="filtersContainer" class="disabled-block">
+          <label>Host 1</label>
+          <input class="filter-host" type="text" placeholder="https://example.com" disabled>
+        </div>
+        <div class="opt span-2" style="margin-top:6px">
+          <input type="checkbox" id="useFilter"><label for="useFilter">Filter links by host (optional)</label>
+        </div>
+        <p class="muted span-2">Only keep links whose URL contains any of the hosts above.</p>
+      </div>
+
+      <!-- FIND A TV SERIES (keyword filter, optional) -->
+      <div class="grid grid-2" style="margin-top:6px">
+        <div>
+          <div class="opt"><input type="checkbox" id="seriesFinder"><label for="seriesFinder">Find a TV series</label></div>
+          <input id="seriesHint" type="text" placeholder="Keyword to target a series (optional)" disabled>
+          <p class="muted" id="seriesNote" style="display:none">Le texte tapé servira à filtrer les liens (titre ou URL) pour ne garder que cette série.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SINGLE MODE ONLY -->
+    <div class="card" id="singleSection">
+      <div class="section-title">Single</div>
+
+      <!-- Custom title + Season -->
+      <div class="grid-2 grid">
+        <div>
+          <div class="opt"><input type="checkbox" id="useCustomTitle"><label for="useCustomTitle">Use custom title</label></div>
+          <input id="customTitle" type="text" placeholder="Custom Title (e.g., Mon Titre Exemple Personnaliser)" disabled>
+          <p class="muted">If enabled, output like <code>Custom Title Sxx Eyy [Host]</code>.</p>
+        </div>
+        <div>
+          <label for="season">Season</label>
+          <input id="season" type="number" value="1" min="1" max="99" disabled>
+          <p class="muted">Used as <code>Sxx</code> when custom title is enabled.</p>
+        </div>
+      </div>
+
+      <!-- One shared tvg-logo + group -->
+      <div class="grid-2 grid">
+        <div>
+          <div class="opt"><input type="checkbox" id="singleUseOneLogo"><label for="singleUseOneLogo">Use a single tvg-logo</label></div>
+          <input id="singleLogo" type="url" placeholder="https://host.com/path/logo.jpg" disabled>
+        </div>
+        <div>
+          <div class="opt"><input type="checkbox" id="singleUseGroup"><label for="singleUseGroup">Use group-title</label></div>
+          <input id="singleGroup" type="text" placeholder="My Group" disabled>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="downloadSingle" class="btn">Download playlist</button>
+        <span class="ok" id="okSingle">Playlist generated.</span>
+      </div>
+      <textarea id="previewSingle" class="list" readonly style="min-height:160px"></textarea>
+    </div>
+  </div>
+
+  <script>
+    const $ = s=>document.querySelector(s);
+
+    const htmlInput = $('#htmlInput');
+    const fileInput = $('#fileInput');
+    const parseBtn = $('#parseBtn');
+    const parseInfo = $('#parseInfo');
+
+    const useFilterEl = $('#useFilter');
+    const filterCountEl = $('#filterCount');
+    const filtersContainer = $('#filtersContainer');
+
+    // Series finder
+    const seriesFinderEl = $('#seriesFinder');
+    const seriesHintEl = $('#seriesHint');
+    const seriesNoteEl = $('#seriesNote');
+
+    // Single options
+    const singleUseGroup = $('#singleUseGroup');
+    const singleGroup = $('#singleGroup');
+
+    const useCustomTitle = $('#useCustomTitle');
+    const customTitle = $('#customTitle');
+    const seasonEl = $('#season');
+
+    const singleUseOneLogo = $('#singleUseOneLogo');
+    const singleLogo = $('#singleLogo');
+
+    const previewSingle = $('#previewSingle');
+    const downloadSingle = $('#downloadSingle');
+    const okSingle = $('#okSingle');
+
+    // dynamic filters inputs
+    function rebuildFilters(){
+      const n = clamp(parseInt(filterCountEl.value||'1',10),1,5);
+      // reconstruire champs host 1..n
+      const current = filtersContainer.querySelectorAll('.filter-host').length;
+      for(let i=current;i<n;i++){
+        const label = document.createElement('label');
+        label.textContent = `Host ${i+1}`;
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.className='filter-host'; inp.placeholder='https://example.com';
+        if(!useFilterEl.checked){ inp.disabled = true; }
+        filtersContainer.appendChild(label);
+        filtersContainer.appendChild(inp);
+      }
+      for(let i=current;i>n;i--){
+        filtersContainer.removeChild(filtersContainer.lastElementChild);
+        filtersContainer.removeChild(filtersContainer.lastElementChild);
+      }
+    }
+    filterCountEl.addEventListener('input', rebuildFilters);
+
+    useFilterEl.addEventListener('change', ()=>{
+      const enabled = useFilterEl.checked;
+      filterCountEl.disabled = !enabled;
+      filtersContainer.classList.toggle('disabled-block', !enabled);
+      filtersContainer.querySelectorAll('.filter-host').forEach(inp=> inp.disabled = !enabled);
+    });
+
+    // Series finder toggles
+    seriesFinderEl.addEventListener('change', ()=>{
+      seriesHintEl.disabled = !seriesFinderEl.checked;
+      seriesNoteEl.style.display = seriesFinderEl.checked ? 'block' : 'none';
+    });
+
+    // New toggles
+    useCustomTitle.addEventListener('change', ()=>{
+      const on = useCustomTitle.checked;
+      customTitle.disabled = !on;
+      seasonEl.disabled = !on;
+      render();
+    });
+    singleUseOneLogo.addEventListener('change', ()=>{
+      const on = singleUseOneLogo.checked;
+      singleLogo.disabled = !on;
+      render();
+    });
+
+    singleUseGroup.addEventListener('change',()=>{ singleGroup.disabled = !singleUseGroup.checked; render(); });
+    singleGroup.addEventListener('input', render);
+
+    fileInput.addEventListener('change', ()=>{
+      const f = fileInput.files?.[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = e=>{ htmlInput.value = String(e.target.result||''); };
+      reader.readAsText(f);
+    });
+
+    parseBtn.addEventListener('click', ()=>{ 
+      try { parse(); }
+      catch(e){ console.error(e); alert('JS error: '+e.message); }
+    });
+
+    function normalize(str){
+      return (str||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    }
+
+    function extractItems(html){
+      const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+      const anchors = [...doc.querySelectorAll('a[href]')];
+      const items = [];
+      const seen = new Set();
+      for(const a of anchors){
+        const href = a.getAttribute('href');
+        if(!href || !/^https?:\/\//i.test(href)) continue;
+        if(seen.has(href)) continue; seen.add(href);
+        let title = (a.textContent||'').replace(/\s+/g,' ').trim();
+        if(!title){ title = a.getAttribute('title')||''; }
+        if(!title){
+          try{
+            const last = decodeURIComponent(href.split('?')[0].split('#')[0]).split('/').pop()||'';
+            title = last.replace(/\.[a-z0-9]{2,5}$/i,'').replace(/[\-_]+/g,' ').trim();
+          }catch(e){ title = 'Item'; }
+        }
+        // nearby image
+        let img = a.querySelector('img') || a.previousElementSibling;
+        if(!(img&&img.tagName==='IMG') && a.parentElement){ img = a.parentElement.querySelector('img'); }
+        const imgSrc = (img && img.getAttribute('src') && /^(https?:)?\/\//.test(img.getAttribute('src'))) ? img.getAttribute('src') : '';
+        items.push({url:href, title, img:imgSrc});
+      }
+      return items;
+    }
+
+    // Episode number detection (robuste + priorité URL)
+    function detectEpisodeNumber(input){
+      if(!input) return null;
+      const s = String(input);
+      let stem = null;
+      try {
+        const u = new URL(s);
+        const last = u.pathname.split('/').pop() || '';
+        stem = last;
+      } catch(e) {
+        const m = s.match(/([A-Za-z0-9_\-\.]+)\.(mkv|mp4|avi|mov|ts|m3u8)\b/i);
+        if(m) stem = m[1];
+      }
+      const hay = (stem || s).toLowerCase();
+      let m = hay.match(/s\s*(\d{1,2})\s*e\s*0*(\d{1,3})/i);
+      if(m) return parseInt(m[2],10);
+      m = hay.match(/(?:^|[_\-.])0*(\d{1,3})(?:end)?(?:$|[^a-z0-9])/i);
+      if(m) return parseInt(m[1],10);
+      m = hay.match(/\be(?:p|pisode)?\s*0*(\d{1,3})\b/i);
+      if(m) return parseInt(m[1],10);
+      return null;
+    }
+
+    // Provider label from URL host
+    function providerLabel(url){
+      try{
+        const host = new URL(url).hostname.replace(/^www\./,'').toLowerCase();
+        if(host.includes('ddownload')) return 'DDOWNLOAD';
+        if(host.includes('mega4upload') || host.endsWith('mega.nz') || host.endsWith('mega.co.nz')) return 'Mega';
+        if(host.includes('dropgalaxy') || host.includes('dgdrive')) return 'DropGalaxy';
+        if(host.includes('uploady')) return 'UPLOADY';
+        if(host.includes('up-4ever') || host.includes('up4ever')) return 'up4ever';
+        if(host.includes('nitroflare')) return 'NitroFlare';
+        if(host.includes('1fichier')) return '1fichier';
+        if(host.includes('rapidgator')) return 'Rapidgator';
+        if(host.includes('mediafire')) return 'MediaFire';
+        if(host.includes('gofile')) return 'Gofile';
+        if(host.includes('pixeldrain')) return 'PixelDrain';
+        if(host.includes('drive.google')) return 'Google Drive';
+        const parts = host.split('.');
+        return parts.slice(-2).join('.');
+      }catch(e){ return 'Host'; }
+    }
+
+    function getHostFilters(){
+      const hs = [...filtersContainer.querySelectorAll('.filter-host')]
+        .map(i=>i.value.trim())
+        .filter(Boolean)
+        .slice(0,5);
+      return hs;
+    }
+
+    function applyHostFilter(items){
+      if(!useFilterEl.checked) return items;
+      const hs = getHostFilters();
+      if(!hs.length) return items;
+      const lower = hs.map(h=>h.toLowerCase());
+      return items.filter(it => lower.some(h=> it.url.toLowerCase().includes(h)));
+    }
+
+    // Global state
+    let state = { items: [] };
+
+    function parse(){
+      parseInfo.textContent = '';
+      const html = htmlInput.value || '';
+      let items = extractItems(html);
+
+      // Optional: host filter
+      items = applyHostFilter(items);
+
+      // Optional: series keyword filter
+      if(seriesFinderEl.checked){
+        const hint = seriesHintEl.value.trim();
+        if(hint){
+          const normHint = normalize(hint).toLowerCase();
+          items = items.filter(it =>
+            normalize(it.title).toLowerCase().includes(normHint) ||
+            it.url.toLowerCase().includes(normHint)
+          );
+        }
+      }
+
+      state.items = items;
+      parseInfo.textContent = `${items.length} links found${useFilterEl.checked ? ' after host filter' : ''}${(seriesFinderEl.checked && seriesHintEl.value.trim()) ? ' (series keyword applied)' : ''}.`; 
+
+      // Auto-set one shared logo if all images identical and present
+      const uniqImgs = Array.from(new Set(items.map(i=>i.img).filter(Boolean)));
+      if(uniqImgs.length === 1){
+        singleUseOneLogo.checked = true;
+        singleLogo.disabled = false;
+        singleLogo.value = uniqImgs[0];
+      } else {
+        if(!singleUseOneLogo.checked){ singleLogo.disabled = true; singleLogo.value = ''; }
+      }
+
+      render();
+    }
+
+    function buildM3USingle(){
+      const parts=['#EXTM3U'];
+
+      const useCustom = !!useCustomTitle.checked;
+      const titleBase = (customTitle.value || '').trim();
+      const s = String(parseInt(seasonEl.value||'1',10)).padStart(2,'0');
+
+      const groupOpt = (singleUseGroup.checked && singleGroup.value.trim()) ? ` group-title="${singleGroup.value.trim()}"` : '';
+      const logoOpt  = (singleUseOneLogo.checked && singleLogo.value.trim())   ? ` tvg-logo="${singleLogo.value.trim()}"` : '';
+
+      state.items.forEach((it, idx)=>{
+        const ep = detectEpisodeNumber(it.url) ?? detectEpisodeNumber(it.title) ?? (idx+1);
+        const epStr = String(ep).padStart(2,'0');
+        let finalTitle;
+        if(useCustom && titleBase){
+          finalTitle = `${titleBase} S${s} E${epStr} [${providerLabel(it.url)}]`;
+        }else{
+          finalTitle = it.title;
+        }
+        parts.push(`#EXTINF:-1${logoOpt}${groupOpt},${finalTitle}`);
+        parts.push(it.url);
+      });
+
+      return parts.join('\n');
+    }
+
+    function fileName(){
+      const d = new Date();
+      const pad = n=> String(n).padStart(2,'0');
+      return `playlist_${d.getFullYear()}_${pad(d.getMonth()+1)}_${pad(d.getDate())}_${pad(d.getHours())}_${pad(d.getMinutes())}_${pad(d.getSeconds())}.m3u`;
+    }
+
+    function download(content){
+      const blob = new Blob([content], {type:'audio/x-mpegurl'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName();
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function render(){
+      okSingle.style.display = 'none';
+      previewSingle.value = buildM3USingle();
+    }
+
+    downloadSingle.addEventListener('click', ()=>{
+      if(!state.items.length){ alert('No links found.'); return; }
+      download(buildM3USingle());
+      okSingle.style.display='inline';
+    });
+
+    function clamp(n,min,max){ return Math.min(Math.max(n,min),max); }
+    function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+    // init
+    rebuildFilters();
+  </script>
+</body>
+</html>

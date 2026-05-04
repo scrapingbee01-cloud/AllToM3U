@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>M3U – Google Sheets to Playlist</title>
+  <style>
+    :root { --bg:#f7f7f8; --card:#fff; --text:#222; --muted:#666; --accent:#0b5fff; --accent-muted:#4f82ff; --border:#e7e7ea; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 20px}
+    h1{font-size:28px;margin:0 0 6px}
+    p.sub{color:var(--muted);margin:0 0 18px}
+
+    .breadcrumb{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .home-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--accent);font-weight:700}
+    .home-link:hover{opacity:.85}
+    .breadcrumb .sep{color:#b8bfd3}
+    h3.current{margin:0;font-size:16px;color:var(--accent-muted);font-weight:700}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:16px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    .grid-2{grid-template-columns:1fr 1fr}
+    .grid-3{grid-template-columns:1fr 1fr 1fr}
+    @media (max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+    label{font-weight:600;margin-bottom:6px;display:block}
+    input[type="text"],input[type="url"],input[type="number"],select,textarea{
+      width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:#fff
+    }
+    textarea{min-height:160px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    input[disabled],select[disabled]{background:#f0f0f2;color:#8a8a92}
+    .opt{display:flex;align-items:center;gap:8px}
+    .opt input[type="checkbox"]{width:18px;height:18px}
+
+    .actions{display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    button{appearance:none;border:0;background:var(--accent);color:#fff;border-radius:10px;font-weight:700;cursor:pointer}
+    /* mêmes dimensions Parse / Download */
+    .btn{min-width:240px;height:44px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center}
+    .btn-ghost{background:#eef3ff;color:#1b3ea3}
+    .muted{color:var(--muted);font-size:13px}
+    .ok{color:#2e7d32;font-size:14px;display:none;margin-left:8px}
+
+    table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    th,td{padding:10px 12px;border:1px solid var(--border);background:#fff}
+    th{background:#f3f5ff}
+    .tbl{overflow:auto;border-radius:10px}
+    .list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff}
+    .section-title{font-weight:800;margin:8px 0 6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="breadcrumb" aria-label="Fil d’Ariane">
+      <a class="home-link" href="javascript:void(0)" onclick="history.back()">Home</a>
+      <span class="sep">›</span>
+      <h3 class="current">Google Sheets to M3U</h3>
+    </nav>
+
+    <h1>Sheets → M3U</h1>
+    <p class="sub">Entrez un lien Google Sheets public (format <code>/spreadsheets/d/&lt;ID&gt;</code>), choisissez la feuille, mappez les colonnes et générez votre playlist.</p>
+
+    <!-- SOURCE -->
+    <div class="card">
+      <div class="grid-2 grid" style="align-items:end">
+        <div>
+          <label for="sheetUrl">Lien Google Sheets</label>
+          <input id="sheetUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          <p class="muted">Le tableur doit être accessible en lecture (Anyone with the link → Viewer).</p>
+        </div>
+        <div class="actions" style="margin:0">
+          <button id="parseBtn" class="btn btn-ghost">Parse</button>
+          <span id="parseInfo" class="muted"></span>
+        </div>
+      </div>
+
+      <div id="sheetsBlock" class="tbl" style="display:none;margin-top:10px">
+        <table>
+          <thead><tr><th style="width:60%">Titre de la feuille</th><th style="width:20%">Index</th><th style="width:20%">Action</th></tr></thead>
+        <tbody id="sheetsTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- OPTIONS + OUTPUT -->
+    <div class="card" id="optionsCard" style="display:none">
+      <div class="section-title">Options & Output</div>
+
+      <div class="grid-3 grid">
+        <div>
+          <label for="colLabel">Colonne – Title (default 0)</label>
+          <select id="colLabel"></select>
+        </div>
+        <div>
+          <label for="colLink">Colonne – Link (stream URL)</label>
+          <select id="colLink"></select>
+        </div>
+        <div>
+          <div class="opt"><input type="checkbox" id="useTvgNameCol"><label for="useTvgNameCol">Inclure tvg-name (depuis une colonne)</label></div>
+          <select id="colTvgName" disabled></select>
+        </div>
+      </div>
+
+      <div class="grid-3 grid" style="margin-top:6px">
+        <div>
+          <div class="opt"><input type="checkbox" id="useSingleLogo"><label for="useSingleLogo">Use a single tvg-logo</label></div>
+          <input id="singleLogoUrl" type="url" placeholder="https://host.com/path/logo.jpg" disabled>
+        </div>
+        <div>
+          <div class="opt"><input type="checkbox" id="useLogoCol"><label for="useLogoCol">tvg-logo (from a column)</label></div>
+          <select id="colLogo" disabled></select>
+          <p class="muted">Si les deux options logo sont cochées, le logo unique est prioritaire.</p>
+        </div>
+        <div>
+          <div class="opt"><input type="checkbox" id="useGroup"><label for="useGroup">Use group-title</label></div>
+          <input id="groupVal" type="text" placeholder="My Group" disabled>
+        </div>
+      </div>
+
+      <div class="grid-2 grid" style="margin-top:8px">
+        <div>
+          <div class="opt"><input type="checkbox" id="useCustomTitle"><label for="useCustomTitle">Use custom title</label></div>
+          <input id="customTitle" type="text" placeholder="Custom Title (ex: Mon Titre…)" disabled>
+          <p class="muted">Si activé et qu’un épisode est détecté : <code>Custom Title SXX EYY</code>.</p>
+        </div>
+        <div>
+          <label for="season">Season</label>
+          <input id="season" type="number" value="1" min="1" max="99" disabled>
+          <p class="muted">Utilisé avec le custom title.</p>
+        </div>
+      </div>
+
+      <div class="grid-2 grid" style="margin-top:4px">
+        <div>
+          <div class="opt"><input type="checkbox" id="seriesFinder"><label for="seriesFinder">Find a TV series</label></div>
+          <input id="seriesHint" type="text" placeholder="Mot-clé titre (optionnel)" disabled>
+          <p class="muted" id="seriesNote" style="display:none">Filtre sur le label (insensible casse/accents).</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="downloadBtn" class="btn">Download playlist</button>
+        <span class="ok" id="okMsg">Playlist generated.</span>
+      </div>
+      <textarea id="preview" class="list" readonly style="min-height:240px"></textarea>
+    </div>
+  </div>
+
+  <script>
+    const API_KEY = 'AIzaSyA4G1j7ayOdF3TG5zw3qsZIAUa53I_i34I';
+    const $ = s => document.querySelector(s);
+
+    // UI refs
+    const sheetUrl = $('#sheetUrl');
+    const parseBtn = $('#parseBtn');
+    const parseInfo = $('#parseInfo');
+    const sheetsBlock = $('#sheetsBlock');
+    const sheetsTbody = $('#sheetsTbody');
+
+    const optionsCard = $('#optionsCard');
+    const colLabel = $('#colLabel');
+    const colLink = $('#colLink');
+    const useTvgNameCol = $('#useTvgNameCol');
+    const colTvgName = $('#colTvgName');
+
+    const useSingleLogo = $('#useSingleLogo');
+    const singleLogoUrl = $('#singleLogoUrl');
+    const useLogoCol = $('#useLogoCol');
+    const colLogo = $('#colLogo');
+
+    const useGroup = $('#useGroup');
+    const groupVal = $('#groupVal');
+
+    const useCustomTitle = $('#useCustomTitle');
+    const customTitle = $('#customTitle');
+    const season = $('#season');
+
+    const seriesFinder = $('#seriesFinder');
+    const seriesHint = $('#seriesHint');
+    const seriesNote = $('#seriesNote');
+
+    const preview = $('#preview');
+    const downloadBtn = $('#downloadBtn');
+    const okMsg = $('#okMsg');
+
+    // State
+    let ssId = '';
+    let workbookTitle = '';
+    let sheetTitles = [];
+    let currentSheet = '';
+    let values = [];
+    let items = [];
+
+    // Events
+    parseBtn.addEventListener('click', onParse);
+    useTvgNameCol.addEventListener('change', () => { colTvgName.disabled = !useTvgNameCol.checked; render(); });
+    useSingleLogo.addEventListener('change', () => { singleLogoUrl.disabled = !useSingleLogo.checked; render(); });
+    useLogoCol.addEventListener('change', () => { colLogo.disabled = !useLogoCol.checked; render(); });
+    useGroup.addEventListener('change', () => { groupVal.disabled = !useGroup.checked; render(); });
+    seriesFinder.addEventListener('change', () => {
+      seriesHint.disabled = !seriesFinder.checked; 
+      seriesNote.style.display = seriesFinder.checked ? 'block' : 'none';
+      render();
+    });
+    useCustomTitle.addEventListener('change', () => {
+      customTitle.disabled = !useCustomTitle.checked;
+      season.disabled = !useCustomTitle.checked;
+      render();
+    });
+
+    [colLabel, colLink, colTvgName, colLogo, groupVal, singleLogoUrl, customTitle, season, seriesHint]
+      .forEach(el => el.addEventListener('input', render));
+
+    downloadBtn.addEventListener('click', () => {
+      if (!items.length) { alert('Aucune donnée à exporter.'); return; }
+      const content = buildM3U(getCurrentOpts());  // ✅ utilise les mêmes options que l’aperçu
+      const blob = new Blob([content], {type:'audio/x-mpegurl'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName();
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      okMsg.style.display = 'inline';
+    });
+
+    // Helpers
+    function extractSheetId(url) {
+      if (!url) return '';
+      try {
+        const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+        return m ? m[1] : '';
+      } catch { return ''; }
+    }
+    function apiSpreadsheetMeta(id){
+      return `https://sheets.googleapis.com/v4/spreadsheets/${id}?key=${API_KEY}`;
+    }
+    function apiValues(id, title){
+      const enc = encodeURIComponent(title);
+      return `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${enc}?key=${API_KEY}`;
+    }
+    function normalize(str){
+      return (str||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    }
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function detectEpisodeNumber(input){
+      if(!input) return null;
+      const s = String(input);
+      let stem = s;
+      const mfile = s.match(/([A-Za-z0-9_\-\.]+)\.(mkv|mp4|avi|mov|ts|m3u8)\b/i);
+      if(mfile) stem = mfile[1];
+      const hay = stem.toLowerCase();
+      let m = hay.match(/s\s*(\d{1,2})\s*e\s*0*(\d{1,3})/i);
+      if(m) return parseInt(m[2],10);
+      m = hay.match(/(?:^|[_\-.])0*(\d{1,3})(?:end)?(?:$|[^a-z0-9])/i);
+      if(m) return parseInt(m[1],10);
+      m = hay.match(/\be(?:p|pisode)?\s*0*(\d{1,3})\b/i);
+      if(m) return parseInt(m[1],10);
+      return null;
+    }
+    function providerLabel(url){
+      try{ const h = new URL(url).hostname.replace(/^www\./,'').toLowerCase();
+        return h.split('.').slice(-2).join('.');
+      }catch(e){ return 'Host'; }
+    }
+    function fileName(){
+      const d = new Date();
+      const p = n => String(n).padStart(2,'0');
+      return `playlist_${d.getFullYear()}_${p(d.getMonth()+1)}_${p(d.getDate())}_${p(d.getHours())}_${p(d.getMinutes())}_${p(d.getSeconds())}.m3u`;
+    }
+
+    // Core
+    async function onParse(){
+      okMsg.style.display = 'none';
+      optionsCard.style.display = 'none';
+      sheetsBlock.style.display = 'none';
+      sheetsTbody.innerHTML = '';
+      preview.value = '';
+      items = []; values = []; sheetTitles = []; currentSheet = ''; workbookTitle = '';
+
+      const url = sheetUrl.value.trim();
+      ssId = extractSheetId(url);
+      if(!ssId){
+        alert('Veuillez entrer un lien Google Sheets valable.');
+        return;
+      }
+      parseInfo.textContent = 'Chargement…';
+      try{
+        const res = await fetch(apiSpreadsheetMeta(ssId));
+        if(!res.ok){ throw new Error('HTTP '+res.status); }
+        const data = await res.json();
+        workbookTitle = data?.properties?.title || '(Sans titre)';
+        sheetTitles = (data?.sheets||[]).map(s => s?.properties?.title).filter(Boolean);
+        if(!sheetTitles.length){ parseInfo.textContent = 'Aucune feuille trouvée.'; return; }
+
+        // liste des feuilles
+        sheetsBlock.style.display = 'block';
+        sheetsTbody.innerHTML = '';
+        sheetTitles.forEach((t,i)=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${escapeHtml(t)}</td>
+            <td style="text-align:center">${i}</td>
+            <td style="text-align:center"><button class="btn btn-ghost" data-title="${escapeAttr(t)}">Show</button></td>
+          `;
+          sheetsTbody.appendChild(tr);
+        });
+
+        sheetsTbody.querySelectorAll('button[data-title]').forEach(btn=>{
+          btn.addEventListener('click', ()=> loadSheet(btn.getAttribute('data-title')));
+        });
+
+        parseInfo.textContent = `Classeur: ${workbookTitle} — ${sheetTitles.length} feuille(s)`;
+      }catch(e){
+        console.error(e);
+        alert('Erreur lors de la récupération du classeur. Vérifiez le partage public.');
+        parseInfo.textContent = '';
+      }
+    }
+
+    async function loadSheet(title){
+      okMsg.style.display = 'none';
+      optionsCard.style.display = 'none';
+      preview.value = '';
+      items = []; values = [];
+      currentSheet = title;
+
+      parseInfo.textContent = `Chargement de "${title}"…`;
+      try{
+        const res = await fetch(apiValues(ssId, title));
+        if(!res.ok){ throw new Error('HTTP '+res.status); }
+        const data = await res.json();
+        values = data?.values || [];
+        parseInfo.textContent = `Feuille "${title}" : ${values.length} ligne(s)`;
+
+        // Préparer mapping colonnes
+        const maxCols = values.reduce((m,row)=>Math.max(m, row.length||0), 0);
+        fillSelect(colLabel, maxCols, 0);
+        const urlColGuess = guessUrlCol(values);
+        fillSelect(colLink, maxCols, urlColGuess);
+        fillSelect(colTvgName, maxCols, 0);
+        fillSelect(colLogo, maxCols, 0);
+
+        // Activer options
+        optionsCard.style.display = 'block';
+
+        // (Ré)initialiser états optionnels
+        useTvgNameCol.checked = false; colTvgName.disabled = true;
+        useSingleLogo.checked = false; singleLogoUrl.disabled = true; singleLogoUrl.value = '';
+        useLogoCol.checked = false; colLogo.disabled = true;
+        useGroup.checked = false; groupVal.disabled = true; groupVal.value = '';
+        useCustomTitle.checked = false; customTitle.disabled = true; customTitle.value = ''; season.disabled = true; season.value = 1;
+        seriesFinder.checked = false; seriesHint.disabled = true; seriesHint.value = ''; seriesNote.style.display='none';
+
+        // Build initial preview
+        render();
+      }catch(e){
+        console.error(e);
+        alert('Erreur lors de la lecture de la feuille (droits d’accès ?).');
+        parseInfo.textContent = '';
+      }
+    }
+
+    function fillSelect(sel, maxCols, defIndex=0){
+      sel.innerHTML = '';
+      const cap = Math.max(maxCols, 1);
+      for(let i=0;i<cap;i++){
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = `Col ${i}`;
+        sel.appendChild(opt);
+      }
+      sel.value = String(Math.min(defIndex, cap-1));
+    }
+
+    function guessUrlCol(rows){
+      let best = 0, bestScore = -1;
+      const isUrl = v => /^https?:\/\//i.test(v||'');
+      const cols = rows.reduce((m,row)=>Math.max(m, row.length||0),0);
+      for(let c=0;c<cols;c++){
+        let score = 0;
+        for(let r=0;r<rows.length;r++){
+          if(isUrl(rows[r]?.[c])) score++;
+        }
+        if(score > bestScore){ bestScore = score; best = c; }
+      }
+      return best;
+    }
+
+    function getCurrentOpts(){
+      const wantCustom = useCustomTitle.checked && customTitle.value.trim();
+      const seasonStr = pad2(parseInt(season.value||'1',10));
+      const wantGroup = useGroup.checked && groupVal.value.trim();
+      const wantLogoCol = useLogoCol.checked;
+      const logoUnique = (useSingleLogo.checked && singleLogoUrl.value.trim()) ? singleLogoUrl.value.trim() : '';
+
+      return { wantCustom, seasonStr, wantGroup, logoUnique, wantLogoCol };
+    }
+
+    function render(){
+      if(!values.length){ preview.value = ''; return; }
+      const cLabel = +colLabel.value;
+      const cLink  = +colLink.value;
+      const cName  = +colTvgName.value;
+      const cLogo  = +colLogo.value;
+
+      const wantName = useTvgNameCol.checked;
+      const wantLogoCol = useLogoCol.checked;
+
+      // Construire items (inclure les champs nécessaires pour buildM3U)
+      const tmp = [];
+      for(let i=0;i<values.length;i++){
+        const row = values[i] || [];
+        const label = (row[cLabel]||'').toString().trim();
+        const link  = (row[cLink] ||'').toString().trim();
+        if(!label || !/^https?:\/\//i.test(link)) continue;
+
+        if(seriesFinder.checked){
+          const hint = seriesHint.value.trim();
+          if(hint){
+            const nLabel = normalize(label).toLowerCase();
+            const nHint  = normalize(hint).toLowerCase();
+            if(!nLabel.includes(nHint)) continue;
+          }
+        }
+
+        const tvgName = (wantName ? (row[cName]||'').toString().trim() : '');
+        const logoColVal = wantLogoCol ? (row[cLogo]||'').toString().trim() : '';
+
+        tmp.push({ label, link, tvgName, logoColVal });
+      }
+      items = tmp;
+
+      // Aperçu avec les options en cours
+      preview.value = buildM3U(getCurrentOpts());
+    }
+
+    function buildM3U(opts={}){
+      const { wantCustom, seasonStr, wantGroup, logoUnique, wantLogoCol } = opts;
+      const groupOpt = wantGroup ? ` group-title="${escapeCsv(groupVal.value.trim())}"` : '';
+      const nameEnabled = useTvgNameCol.checked;
+
+      const out = ['#EXTM3U'];
+      items.forEach((it, idx)=>{
+        const ep = detectEpisodeNumber(it.label) ?? detectEpisodeNumber(it.link) ?? (idx+1);
+        const epStr = pad2(ep);
+
+        let title = it.label;
+        if(wantCustom){
+          title = `${customTitle.value.trim()} S${seasonStr} E${epStr}`;
+        }
+
+        // tvg-name
+        const tvgNameOpt = (nameEnabled && it.tvgName) ? ` tvg-name="${escapeCsv(it.tvgName)}"` : '';
+
+        // tvg-logo
+        let logoOpt = '';
+        if(logoUnique){
+          logoOpt = ` tvg-logo="${escapeCsv(logoUnique)}"`;
+        }else if(wantLogoCol){
+          const v = it.logoColVal || '';
+          if(/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(v)) logoOpt = ` tvg-logo="${escapeCsv(v)}"`;
+        }
+
+        out.push(`#EXTINF:-1${logoOpt}${tvgNameOpt}${groupOpt},${title}`);
+        out.push(it.link);
+      });
+      return out.join('\n');
+    }
+
+    // Utils
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    }
+    function escapeAttr(s){ return escapeHtml(s); }
+    function escapeCsv(s){ return String(s||'').replace(/"/g,'\\"'); }
+  </script>
+</body>
+</html>

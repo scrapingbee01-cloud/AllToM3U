@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M3U – Text to Playlist</title>
+  <style>
+    :root { --bg:#f7f7f8; --card:#fff; --text:#222; --muted:#666; --accent:#0b5fff; --accent-muted:#4f82ff; --border:#e7e7ea; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 20px}
+    h1{font-size:28px;margin:0 0 6px}
+    p.sub{color:var(--muted);margin:0 0 18px}
+
+    /* breadcrumb */
+    .breadcrumb{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .home-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--accent);font-weight:700}
+    .home-link:hover{opacity:.85}
+    .breadcrumb .sep{color:#b8bfd3}
+    h3.current{margin:0;font-size:16px;color:var(--accent-muted);font-weight:700}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:16px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:900px){.grid-2{grid-template-columns:1fr 1fr}}
+
+    label{font-weight:600;margin-bottom:6px;display:block}
+    input[type="text"], input[type="url"], textarea{
+      width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px
+    }
+    textarea{min-height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    input[disabled]{background:#f0f0f2;color:#8a8a92}
+    .opt{display:flex;align-items:center;gap:8px}
+    .opt input[type="checkbox"]{width:18px;height:18px}
+
+    .actions{display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    button{appearance:none;border:0;background:var(--accent);color:#fff;border-radius:10px;font-weight:700;cursor:pointer}
+    /* mêmes dimensions pour Parse et Download */
+    .btn{min-width:240px;height:44px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center}
+    .btn-ghost{background:#eef3ff;color:#1b3ea3}
+
+    .muted{color:var(--muted);font-size:13px}
+    .ok{color:#2e7d32;font-size:14px;display:none;margin-left:8px}
+    .list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff}
+    .section-title{font-weight:800;margin:8px 0 6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a class="home-link" href="javascript:void(0)" onclick="history.back()">Home</a>
+      <span class="sep">›</span>
+      <h3 class="current">Text to M3U</h3>
+    </nav>
+
+    <h1>Text → M3U</h1>
+    <p class="sub">Paste the structured text or upload a file. The texts are converted to M3U; custom title, shared logo, and group-title options are available.</p>
+
+    <!-- SOURCE INPUT -->
+    <div class="card">
+      <div class="grid-2 grid">
+        <div>
+          <label for="textInput">Paste TEXT</label>
+          <textarea id="textInput" placeholder="CAT;TMDB;TITLE;SAISON;GROUPES;CAST;DIRECTOR;NETWORK;YEAR;GENRES;RES;URLS=https://..."></textarea>
+        </div>
+        <div>
+          <label for="fileInput">Or upload .txt / .csv / .html</label>
+          <input id="fileInput" type="file" accept=".txt,.csv,.log,.md,.json,.tsv,.html,.htm,text/plain,text/html" />
+          <p class="muted">Everything is processed locally in your browser.</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="parseBtn" class="btn btn-ghost">Parse</button>
+        <span id="parseInfo" class="muted"></span>
+      </div>
+
+      <!-- FIND A TV SERIES (keyword filter, optional) -->
+      <div class="grid grid-2" style="margin-top:6px">
+        <div>
+          <div class="opt"><input type="checkbox" id="seriesFinder"><label for="seriesFinder">Find a TV series</label></div>
+          <input id="seriesHint" type="text" placeholder="Keyword to target a series (optional)" disabled>
+          <p class="muted" id="seriesNote" style="display:none">Le mot-clé filtre les lignes sur le champ TITLE (insensible à la casse/accents).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTIONS + OUTPUT -->
+    <div class="card" id="singleSection">
+      <div class="section-title">Options & Output</div>
+
+      <div class="grid-2 grid">
+        <div>
+          <div class="opt"><input type="checkbox" id="useCustomTitle"><label for="useCustomTitle">Use custom title</label></div>
+          <input id="customTitle" type="text" placeholder="Custom Title (e.g., My Title Example Customize)" disabled>
+          <p class="muted">Movies: <code>Custom Title [RES]</code> · TV Series: <code>Custom Title Sxx Eyy [RES]</code>.</p>
+        </div>
+        <div><!-- (Season removed) --></div>
+      </div>
+
+      <div class="grid-2 grid">
+        <div>
+          <div class="opt"><input type="checkbox" id="singleUseOneLogo"><label for="singleUseOneLogo">Use a single tvg-logo</label></div>
+          <input id="singleLogo" type="url" placeholder="https://host.com/path/logo.jpg" disabled>
+        </div>
+        <div>
+          <div class="opt"><input type="checkbox" id="singleUseGroup"><label for="singleUseGroup">Use group-title</label></div>
+          <input id="singleGroup" type="text" placeholder="My Group" disabled>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="downloadSingle" class="btn">Download playlist</button>
+        <span class="ok" id="okSingle">Playlist generated.</span>
+      </div>
+      <textarea id="previewSingle" class="list" readonly style="min-height:200px"></textarea>
+    </div>
+  </div>
+
+  <script>
+    const $ = s=>document.querySelector(s);
+
+    const textInput = $('#textInput');
+    const fileInput = $('#fileInput');
+    const parseBtn = $('#parseBtn');
+    const parseInfo = $('#parseInfo');
+
+    const seriesFinderEl = $('#seriesFinder');
+    const seriesHintEl = $('#seriesHint');
+    const seriesNoteEl = $('#seriesNote');
+
+    const useCustomTitle = $('#useCustomTitle');
+    const customTitle = $('#customTitle');
+
+    const singleUseOneLogo = $('#singleUseOneLogo');
+    const singleLogo = $('#singleLogo');
+
+    const singleUseGroup = $('#singleUseGroup');
+    const singleGroup = $('#singleGroup');
+
+    const previewSingle = $('#previewSingle');
+    const downloadSingle = $('#downloadSingle');
+    const okSingle = $('#okSingle');
+
+    // UI events
+    seriesFinderEl.addEventListener('change', ()=>{
+      seriesHintEl.disabled = !seriesFinderEl.checked;
+      seriesNoteEl.style.display = seriesFinderEl.checked ? 'block' : 'none';
+    });
+
+    useCustomTitle.addEventListener('change', ()=>{
+      const on = useCustomTitle.checked;
+      customTitle.disabled = !on;
+      render();
+    });
+    singleUseOneLogo.addEventListener('change', ()=>{
+      const on = singleUseOneLogo.checked;
+      singleLogo.disabled = !on;
+      render();
+    });
+    singleUseGroup.addEventListener('change',()=>{ singleGroup.disabled = !singleUseGroup.checked; render(); });
+    [singleGroup, singleLogo, customTitle].forEach(inp => inp.addEventListener('input', render));
+
+    fileInput.addEventListener('change', ()=>{
+      const f = fileInput.files?.[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = e=>{ textInput.value = String(e.target.result||''); };
+      reader.readAsText(f);
+    });
+
+    parseBtn.addEventListener('click', ()=>{ 
+      try { parse(); }
+      catch(e){ console.error(e); alert('JS error: '+e.message); }
+    });
+
+    // helpers
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function normalize(str){
+      return (str||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    }
+    // Parse header base URL: "...;URLS=https://sample-host.com/v/"
+    function extractBaseURL(headerLine){
+      const m = headerLine.match(/URLS\s*=\s*([^\s;]+)/i);
+      return m ? m[1].trim() : '';
+    }
+    function parseArrayLike(text){
+      if(!text) return [];
+      const s = text.trim();
+      if(!s.startsWith('[') || !s.endsWith(']')) return [];
+      const j = s.replace(/\\'/g,"\\u0027").replace(/'/g,'"');
+      try{
+        const arr = JSON.parse(j);
+        return Array.isArray(arr) ? arr.map(x=>String(x)) : [];
+      }catch(e){
+        const inner = s.slice(1,-1).trim();
+        if(!inner) return [];
+        return inner.split(/,(?=(?:[^'"]|'[^']*'|"[^"]*")*$)/).map(t=>t.trim().replace(/^['"]|['"]$/g,''));
+      }
+    }
+    // {1:'TOKEN', 2:'TOKEN2'} -> [{ep:1, token:'TOKEN'}, ...]
+    function parseEpisodeDict(text){
+      const out = [];
+      if(!text) return out;
+      const s = text.trim();
+      if(!(s.startsWith('{') && s.endsWith('}'))) return out;
+      const re = /(\d+)\s*:\s*'([^']+)'/g;
+      let m;
+      while((m = re.exec(s))!==null){
+        out.push({ep: parseInt(m[1],10), token: m[2]});
+      }
+      out.sort((a,b)=>a.ep-b.ep);
+      return out;
+    }
+
+    // core parse
+    let state = { items: [], baseURL:'' };
+
+    function parse(){
+      parseInfo.textContent = '';
+      const raw = textInput.value || '';
+      if(!raw.trim()){ alert('Paste some text first.'); return; }
+
+      const lines = raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      if(!lines.length){ alert('No lines found.'); return; }
+
+      // header & base URL
+      let headerIdx = lines.findIndex(l => /URLS\s*=/.test(l));
+      if(headerIdx === -1) headerIdx = 0;
+      const header = lines[headerIdx];
+      const baseURL = extractBaseURL(header) || '';
+      const dataLines = lines.filter((_,i)=>i!==headerIdx && !/^#/.test(lines[i]));
+
+      const items = [];
+      let filmCount=0, serieCount=0;
+
+      for(const line of dataLines){
+        const cols = line.split(';');
+        if(cols.length < 12) continue;
+
+        const cat = (cols[0]||'').toLowerCase().trim(); // film / serie
+        const tmdbId = (cols[1]||'').trim();            // <-- TMDB column
+        const title = (cols[2]||'').trim();
+        let saison = cols[3] ? parseInt(cols[3],10) : NaN;
+        if(!Number.isFinite(saison) || saison<=0) saison = 1;
+
+        const resField = (cols[10]||'').trim();
+        const urlsField = (cols[11]||'').trim();
+
+        // Series keyword filter (on TITLE)
+        if(seriesFinderEl.checked){
+          const hint = seriesHintEl.value.trim();
+          if(hint){
+            const normHint = normalize(hint).toLowerCase();
+            if(!normalize(title).toLowerCase().includes(normHint)) continue;
+          }
+        }
+
+        if(cat === 'film'){
+          filmCount++;
+          const resList = resField.startsWith('[') ? parseArrayLike(resField) : (resField ? [resField] : []);
+          const tokens = parseArrayLike(urlsField);
+          const n = Math.min(tokens.length, resList.length || tokens.length);
+          for(let i=0;i<n;i++){
+            const token = tokens[i] || '';
+            const res = resList[i] || '';
+            const url = baseURL ? (baseURL + token) : token;
+            items.push({cat:'film', tmdbId, baseTitle:title, season:null, episode:null, res, url});
+          }
+        } else if(cat === 'serie'){
+          serieCount++;
+          const res = resField.startsWith('[') ? parseArrayLike(resField).join(', ') : (resField || '');
+          const pairs = parseEpisodeDict(urlsField);
+          for(const {ep, token} of pairs){
+            const url = baseURL ? (baseURL + token) : token;
+            items.push({cat:'serie', tmdbId, baseTitle:title, season:saison, episode:ep, res, url});
+          }
+        }
+      }
+
+      state = { items, baseURL };
+      parseInfo.textContent = `${items.length} entries built (${filmCount} film lines, ${serieCount} serie lines).`;
+      render();
+    }
+
+    // Build M3U
+    function buildM3U(){
+      const groupOpt = (singleUseGroup.checked && singleGroup.value.trim()) ? ` group-title="${singleGroup.value.trim()}"` : '';
+      const logoOpt  = (singleUseOneLogo.checked && singleLogo.value.trim())   ? ` tvg-logo="${singleLogo.value.trim()}"` : '';
+
+      const useCustom = !!useCustomTitle.checked;
+      const titleBase = (customTitle.value || '').trim();
+
+      const parts = ['#EXTM3U'];
+
+      state.items.forEach((it)=>{
+        const s = it.season != null ? String(it.season).padStart(2,'0') : null;
+        const e = it.episode != null ? String(it.episode).padStart(2,'0') : null;
+
+        let label;
+        if(useCustom && titleBase){
+          if(it.cat === 'serie'){
+            label = `${titleBase} S${s} E${e}${it.res ? ` [${it.res}]` : ''}`;
+          }else{
+            label = `${titleBase}${it.res ? ` [${it.res}]` : ''}`;
+          }
+        }else{
+          if(it.cat === 'serie'){
+            label = `${it.baseTitle} S${s} E${e}${it.res ? ` [${it.res}]` : ''}`;
+          }else{
+            label = `${it.baseTitle}${it.res ? ` [${it.res}]` : ''}`;
+          }
+        }
+
+        const idOpt = (it.tmdbId && it.tmdbId.trim()) ? ` tvg-id="tmdb-${it.tmdbId.trim()}"` : '';
+        parts.push(`#EXTINF:-1${idOpt}${logoOpt}${groupOpt},${label}`);
+        parts.push(it.url);
+      });
+
+      return parts.join('\n');
+    }
+
+    function render(){
+      okSingle.style.display = 'none';
+      previewSingle.value = buildM3U();
+    }
+
+    // Download
+    downloadSingle.addEventListener('click', ()=>{
+      if(!state.items.length){ alert('No entries to download.'); return; }
+      const content = buildM3U();
+      const blob = new Blob([content], {type:'audio/x-mpegurl'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName();
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      okSingle.style.display='inline';
+    });
+
+    function fileName(){
+      const d = new Date();
+      const pad = n=> String(n).padStart(2,'0');
+      return `playlist_${d.getFullYear()}_${pad(d.getMonth()+1)}_${pad(d.getDate())}_${pad(d.getHours())}_${pad(d.getMinutes())}_${pad(d.getSeconds())}.m3u`;
+    }
+  </script>
+</body>
+</html>

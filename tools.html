@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tools – Quick Text/M3U Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#f7f7f8; --card:#fff; --text:#222; --muted:#6b7280; --accent:#0b5fff;
+      --accent2:#eef3ff; --border:#e6e6eb;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 20px}
+    h1{margin:0 0 8px}
+    p.sub{margin:0 0 18px;color:var(--muted)}
+    .breadcrumb{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .home-link{color:var(--accent);text-decoration:none;font-weight:800}
+    .sep{color:#a8b0c7}
+    h3.current{margin:0;font-size:16px;color:#355cd6}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:16px}
+    .grid{display:grid;gap:14px}
+    .g2{grid-template-columns:1fr 1fr}
+    .g3{grid-template-columns:1fr 1fr 1fr}
+    @media (max-width:900px){.g2,.g3{grid-template-columns:1fr}}
+
+    label{font-weight:700;margin-bottom:6px;display:block}
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+    input[type="text"],input[type="url"],input[type="number"],select,textarea{
+      width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:15px
+    }
+    textarea{min-height:220px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .opt{display:flex;gap:8px;align-items:center}
+    .opt input[type="checkbox"]{width:18px;height:18px}
+
+    .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    button{appearance:none;border:0;border-radius:10px;cursor:pointer;font-weight:800}
+    .btn{min-width:220px;height:44px;padding:0 16px;background:var(--accent);color:#fff}
+    .btn-ghost{min-width:220px;height:44px;padding:0 16px;background:var(--accent2);color:#1c3fb4}
+    .muted{color:var(--muted);font-size:13px}
+    .ok{color:#2e7d32;font-size:14px;display:none}
+
+    .two-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media (max-width:900px){.two-cols{grid-template-columns:1fr}}
+
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a class="home-link" href="javascript:void(0)" onclick="history.back()">Home</a>
+      <span class="sep">›</span>
+      <h3 class="current">Tools – Text / M3U Editor</h3>
+    </nav>
+
+    <h1>Quick editor (txt / m3u / m3u8)</h1>
+    <p class="sub">Apply transformation rules: simple replace, replace “between”, delete “after/before”, and remove text between a year and a word.</p>
+
+    <!-- Source -->
+    <div class="card">
+      <div class="two-cols">
+        <div>
+          <label for="inputArea">Source text</label>
+          <textarea id="inputArea" placeholder="# Paste your content here..."></textarea>
+          <div class="row" style="margin-top:8px">
+            <input type="file" id="fileInput" accept=".txt,.m3u,.m3u8,.log,.csv,.lst,.text" />
+            <span id="fileInfo" class="muted"></span>
+          </div>
+          <p class="hint">Importing a file is optional. Export will keep the <b>same extension</b> with suffix <code>_edited</code>.</p>
+        </div>
+        <div>
+          <label for="outputArea">Preview (result)</label>
+          <textarea id="outputArea" readonly placeholder="#EXTM3U&#10;#EXTINF:-1,My title…"></textarea>
+          <div class="actions">
+            <button id="previewBtn" class="btn-ghost">Preview</button>
+            <button id="downloadBtn" class="btn">Download</button>
+            <span id="okMsg" class="ok">File generated.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rules -->
+    <div class="card">
+      <h3 style="margin:0 0 10px">Rules</h3>
+
+      <!-- 1 Simple replace (NEW, placed at top) -->
+      <div class="grid g3">
+        <div>
+          <label>1 · Simple replace (global)</label>
+          <input id="findWord" type="text" placeholder="Find (text to replace)" />
+          <p class="hint">Replaces all occurrences in the whole text. Case-sensitivity follows “Ignore case”.</p>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <input id="replaceWord" type="text" placeholder="Replace with (new text)" />
+          <p class="hint">Leave empty to delete matches.</p>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- 2 Replace between -->
+      <div class="grid g3">
+        <div>
+          <label>2 · Replace everything <u>between</u></label>
+          <div class="grid g2">
+            <input id="betweenStart" type="text" placeholder="Left symbol (e.g. [ or () start)" />
+            <input id="betweenEnd" type="text" placeholder="Right symbol (e.g. ] or ) end)" />
+          </div>
+          <div class="opt" style="margin-top:8px">
+            <input id="includeDelims" type="checkbox" />
+            <label for="includeDelims">Include the symbols</label>
+          </div>
+          <p class="hint">Examples: <span class="mono">[ … ]</span>, <span class="mono">( … )</span>, <span class="mono">{ … }</span>, or any start/end markers.</p>
+        </div>
+        <div>
+          <label>Replace with</label>
+          <input id="betweenReplace" type="text" placeholder="Replacement text" />
+          <p class="hint">Leave empty to simply delete the part “between”.</p>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <div class="opt"><input id="betweenMultiline" type="checkbox" />
+            <label for="betweenMultiline">Allow multi-line matches (greedy)</label>
+          </div>
+          <p class="hint">Enable if your blocks span multiple lines.</p>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- 3 Delete after -->
+      <div class="grid g3">
+        <div>
+          <label>3 · Delete all characters <u>after</u>:</label>
+          <input id="deleteAfter" type="text" placeholder="Keyword (per line)" />
+          <p class="hint">Per line: everything after this keyword will be removed.</p>
+        </div>
+        <div class="opt" style="align-self:end">
+          <input id="deleteAfterInc" type="checkbox" />
+          <label for="deleteAfterInc">Include the keyword in deletion</label>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- 4 Delete before -->
+      <div class="grid g3">
+        <div>
+          <label>4 · Delete all characters <u>before</u>:</label>
+          <input id="deleteBefore" type="text" placeholder="Keyword (per line)" />
+          <p class="hint">Per line: everything before this keyword will be removed.</p>
+        </div>
+        <div class="opt" style="align-self:end">
+          <input id="deleteBeforeInc" type="checkbox" />
+          <label for="deleteBeforeInc">Include the keyword in deletion</label>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- 5 Remove between year and word -->
+      <div class="grid g3">
+        <div>
+          <!-- Version courte, conservée -->
+          <label>5 · Remove text <u>between a year (xxxx)</u> and a <u>word (yy)</u></label>
+          <input id="yyWord" type="text" placeholder="yy (target word to keep)" />
+          <p class="hint">
+            xxxx = 4-digit year, optionally preceded by <span class="mono">.</span> or <span class="mono">-</span> (e.g. <span class="mono">.2012.</span>, <span class="mono">-2024</span>, <span class="mono">2025.Titre.video.mp4</span>).<br/>
+            By default, both <b>xxxxx</b> and <b>yy</b> are kept and only the text <i>between</i> them is removed.
+          </p>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <div class="opt" style="margin-bottom:6px">
+            <input id="yyInclude" type="checkbox" />
+            <label for="yyInclude">Also delete the yy word</label>
+          </div>
+          <div class="opt">
+            <input id="yearDelete" type="checkbox" />
+            <label for="yearDelete">Also delete the year (xxxx)</label>
+          </div>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <div class="opt">
+            <input id="yearGlobal" type="checkbox" checked />
+            <label for="yearGlobal">Apply repeatedly on each line (if multiple matches)</label>
+          </div>
+          <p class="hint">If multiple year→yy spans exist in a line, remove all.</p>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- global options -->
+      <div class="row">
+        <div class="opt">
+          <input id="ignoreCase" type="checkbox" />
+          <label for="ignoreCase">Ignore case (a/A)</label>
+        </div>
+        <div class="opt">
+          <input id="trimLines" type="checkbox" checked />
+          <label for="trimLines">Trim trailing spaces</label>
+        </div>
+        <div class="opt">
+          <input id="dropEmpty" type="checkbox" />
+          <label for="dropEmpty">Drop empty lines</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // UI refs
+    const inputArea = document.getElementById('inputArea');
+    const outputArea = document.getElementById('outputArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const previewBtn = document.getElementById('previewBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const okMsg = document.getElementById('okMsg');
+
+    // Rule 1 (simple replace)
+    const findWord = document.getElementById('findWord');
+    const replaceWord = document.getElementById('replaceWord');
+
+    // Rule 2 (between)
+    const betweenStart = document.getElementById('betweenStart');
+    const betweenEnd = document.getElementById('betweenEnd');
+    const includeDelims = document.getElementById('includeDelims');
+    const betweenReplace = document.getElementById('betweenReplace');
+    const betweenMultiline = document.getElementById('betweenMultiline');
+
+    // Rule 3 (delete after)
+    const deleteAfter = document.getElementById('deleteAfter');
+    const deleteAfterInc = document.getElementById('deleteAfterInc');
+
+    // Rule 4 (delete before)
+    const deleteBefore = document.getElementById('deleteBefore');
+    const deleteBeforeInc = document.getElementById('deleteBeforeInc');
+
+    // Rule 5 (year … yy)
+    const yyWord = document.getElementById('yyWord');
+    const yyInclude = document.getElementById('yyInclude');
+    const yearDelete = document.getElementById('yearDelete');
+    const yearGlobal = document.getElementById('yearGlobal');
+
+    // Globals
+    const ignoreCase = document.getElementById('ignoreCase');
+    const trimLines = document.getElementById('trimLines');
+    const dropEmpty = document.getElementById('dropEmpty');
+
+    let originalFileName = '';
+
+    // Helpers
+    function escapeRegExp(s){
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Rule 1: simple replace (global over full text)
+    function applySimpleReplace(text){
+      const find = findWord.value ?? '';
+      if (!find) return text;
+      const repl = replaceWord.value ?? '';
+      const flags = ignoreCase.checked ? 'gi' : 'g';
+      const re = new RegExp(escapeRegExp(find), flags);
+      return text.replace(re, repl);
+    }
+
+    // Rule 2: between delimiters (global over full text)
+    function applyBetweenReplace(text){
+      const start = betweenStart.value ?? '';
+      const end = betweenEnd.value ?? '';
+      const repl = betweenReplace.value ?? '';
+      if (!start || !end) return text;
+
+      const flags = ignoreCase.checked ? 'gi' : 'g';
+      const any = betweenMultiline.checked ? '[\\s\\S]' : '.';
+      const pattern = new RegExp(`${escapeRegExp(start)}(${any}*?)${escapeRegExp(end)}`, flags);
+
+      if (includeDelims.checked){
+        return text.replace(pattern, repl);
+      } else {
+        return text.replace(pattern, `${start}${repl}${end}`);
+      }
+    }
+
+    // Rule 3: delete after (per line)
+    function applyDeleteAfter(line){
+      const key = deleteAfter.value ?? '';
+      if (!key) return line;
+      const hay = ignoreCase.checked ? line.toLowerCase() : line;
+      const needle = ignoreCase.checked ? key.toLowerCase() : key;
+      const idx = hay.indexOf(needle);
+      if (idx === -1) return line;
+      return deleteAfterInc.checked
+        ? line.slice(0, idx)                        // delete keyword + everything after
+        : line.slice(0, idx + key.length);          // keep the keyword, delete after it
+    }
+
+    // Rule 4: delete before (per line)
+    function applyDeleteBefore(line){
+      const key = deleteBefore.value ?? '';
+      if (!key) return line;
+      const hay = ignoreCase.checked ? line.toLowerCase() : line;
+      const needle = ignoreCase.checked ? key.toLowerCase() : key;
+      const idx = hay.indexOf(needle);
+      if (idx === -1) return line;
+      return deleteBeforeInc.checked
+        ? line.slice(idx + key.length)              // delete up to and including keyword
+        : line.slice(idx);                          // delete before keyword, keep keyword
+    }
+
+    // Rule 5: remove everything between a year (xxxx) and a word (yy) – per line
+    function removeBetweenYearAndWord(line){
+      const yy = yyWord.value?.trim();
+      if (!yy) return line;
+
+      const flags = ignoreCase.checked ? 'i' : '';
+      // token may include a leading '.' or '-' followed by a 4-digit year
+      const yearRegex = new RegExp(`(?:[.-]?)(\\d{4})(?!\\d)`, flags);
+
+      let out = line;
+      let iterations = 0;
+
+      const findAndStripOnce = (str) => {
+        const yMatch = yearRegex.exec(str);
+        if (!yMatch) return { changed:false, value:str };
+
+        const yearStart = yMatch.index;                  // start of token (incl. dot/hyphen if present)
+        const yearEnd = yMatch.index + yMatch[0].length; // end of token
+
+        // Find yy AFTER the year
+        const tail = str.slice(yearEnd);
+        const hay = ignoreCase.checked ? tail.toLowerCase() : tail;
+        const yNeedle = ignoreCase.checked ? yy.toLowerCase() : yy;
+        const relIdx = hay.indexOf(yNeedle);
+        if (relIdx === -1) return { changed:false, value:str };
+
+        const yyStart = yearEnd + relIdx;
+        const yyEnd = yyStart + yy.length;
+
+        // If yearDelete: drop the year token too; else keep it
+        const leftEnd = yearDelete.checked ? yearStart : yearEnd;
+        // If yyInclude: drop yy as well
+        const rightStart = yyInclude.checked ? yyEnd : yyStart;
+
+        const result = str.slice(0, leftEnd) + str.slice(rightStart);
+        return { changed:true, value:result };
+      };
+
+      do {
+        const {changed, value} = findAndStripOnce(out);
+        out = value;
+        if (!yearGlobal.checked) break;
+        if (!changed) break;
+        iterations++;
+        if (iterations > 1000) break; // safety
+      } while (true);
+
+      return out;
+    }
+
+    function applyRules(text){
+      // 1) Simple replace (full text)
+      let t = applySimpleReplace(text);
+
+      // 2) Replace between (full text)
+      t = applyBetweenReplace(t);
+
+      // 3/4/5 line-based
+      t = t.split(/\r?\n/).map(line=>{
+        let l = line;
+        l = applyDeleteAfter(l);        // Rule 3
+        l = applyDeleteBefore(l);       // Rule 4
+        l = removeBetweenYearAndWord(l);// Rule 5
+
+        if (trimLines.checked) l = l.replace(/[ \t]+$/,'');
+        return l;
+      }).join('\n');
+
+      if (dropEmpty.checked){
+        t = t.split(/\r?\n/).filter(x=>x.trim()!=='').join('\n');
+      }
+      return t;
+    }
+
+    function buildDownloadName(){
+      const ts = new Date();
+      const pad = n => String(n).padStart(2,'0');
+      const stamp = `${ts.getFullYear()}_${pad(ts.getMonth()+1)}_${pad(ts.getDate())}_${pad(ts.getHours())}_${pad(ts.getMinutes())}_${pad(ts.getSeconds())}`;
+
+      let ext = '.txt';
+      if (originalFileName){
+        const m = originalFileName.match(/(\.[a-z0-9]+)$/i);
+        if (m) ext = m[1];
+      }
+      return `edited_${stamp}${ext}`;
+    }
+
+    // Events
+    previewBtn.addEventListener('click', ()=>{
+      okMsg.style.display = 'none';
+      const src = inputArea.value ?? '';
+      outputArea.value = applyRules(src);
+    });
+
+    downloadBtn.addEventListener('click', ()=>{
+      const result = outputArea.value || applyRules(inputArea.value || '');
+      if (!result){
+        alert('Nothing to download. Paste some text or import a file, then apply rules.');
+        return;
+      }
+      const blob = new Blob([result], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = buildDownloadName();
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      okMsg.style.display = 'inline';
+    });
+
+    fileInput.addEventListener('change', async (e)=>{
+      okMsg.style.display = 'none';
+      const f = e.target.files?.[0];
+      if (!f){ fileInfo.textContent=''; return; }
+      originalFileName = f.name;
+      fileInfo.textContent = `Loaded: ${f.name} (${Math.round(f.size/1024)} KB)`;
+      const txt = await f.text();
+      inputArea.value = txt;
+      outputArea.value = '';
+    });
+  </script>
+</body>
+</html>

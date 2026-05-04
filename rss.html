@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M3U – RSS/XML to Playlist</title>
+  <style>
+    :root { --bg:#f7f7f8; --card:#fff; --text:#222; --muted:#666; --accent:#0b5fff; --accent-muted:#4f82ff; --border:#e7e7ea; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 20px}
+    h1{font-size:28px;margin:0 0 6px}
+    p.sub{color:var(--muted);margin:0 0 18px}
+
+    /* breadcrumb */
+    .breadcrumb{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .home-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--accent);font-weight:700}
+    .home-link:hover{opacity:.85}
+    .breadcrumb .sep{color:#b8bfd3}
+    h3.current{margin:0;font-size:16px;color:var(--accent-muted);font-weight:700}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:16px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:900px){.grid-2{grid-template-columns:1fr 1fr}}
+
+    label{font-weight:600;margin-bottom:6px;display:block}
+    input[type="text"], input[type="url"], input[type="number"], textarea{
+      width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px
+    }
+    textarea{min-height:160px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    input[disabled]{background:#f0f0f2;color:#8a8a92}
+    .opt{display:flex;align-items:center;gap:8px}
+    .opt input[type="checkbox"]{width:18px;height:18px}
+
+    .actions{display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    button{appearance:none;border:0;background:var(--accent);color:#fff;border-radius:10px;font-weight:700;cursor:pointer}
+    /* mêmes dimensions pour Parse et Download */
+    .btn{min-width:240px;height:44px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center}
+    .btn-ghost{background:#eef3ff;color:#1b3ea3}
+
+    .muted{color:var(--muted);font-size:13px}
+    .ok{color:#2e7d32;font-size:14px;display:none;margin-left:8px}
+    .list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff}
+    .section-title{font-weight:800;margin:8px 0 6px}
+    .disabled-block{opacity:.6;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a class="home-link" href="javascript:void(0)" onclick="history.back()">Home</a>
+      <span class="sep">›</span>
+      <h3 class="current">RSS/XML to M3U</h3>
+    </nav>
+
+    <h1>RSS/XML → M3U</h1>
+    <p class="sub">Paste an XML feed or upload a file. We read <code>&lt;name&gt;</code>  for the title and <code>&lt;linkcode&gt;</code>  to compose the links with your <b>Base Link URL</b>.</p>
+
+    <!-- SOURCE INPUT -->
+    <div class="card">
+      <div class="grid-2 grid">
+        <div>
+          <label for="xmlInput">Paste XML</label>
+          <textarea id="xmlInput" placeholder="&lt;response&gt;
+  &lt;items&gt;
+    &lt;item&gt;
+      &lt;name&gt;TitleVideo.2010.720p.mkv&lt;/name&gt;
+      &lt;linkcode&gt;ABCDEFGHIJKLMN&lt;/linkcode&gt;
+    &lt;/item&gt;
+  &lt;/items&gt;
+&lt;/response&gt;"></textarea>
+        </div>
+        <div>
+          <label for="fileInput">Or upload .xml</label>
+          <input id="fileInput" type="file" accept=".xml,.rss,.atom,text/xml,application/xml" />
+          <p class="muted">Le parsing se fait localement dans votre navigateur.</p>
+        </div>
+      </div>
+
+      <div>
+        <label for="baseUrl">Base Link URL (préfixe des linkcode)</label>
+        <input id="baseUrl" type="url" placeholder="https://host-sample.com/">
+        <p class="muted">(e.g., https://host.com/ABCDEFGHIJKLMN)</code></p>
+      </div>
+
+      <div class="actions">
+        <button id="parseBtn" class="btn btn-ghost">Parse</button>
+        <span id="parseInfo" class="muted"></span>
+      </div>
+
+      <!-- FIND A TV SERIES (keyword filter, optional) -->
+      <div class="grid grid-2" style="margin-top:6px">
+        <div>
+          <div class="opt"><input type="checkbox" id="seriesFinder"><label for="seriesFinder">Find a TV series</label></div>
+          <input id="seriesHint" type="text" placeholder="Keyword to target a series (optional)" disabled>
+          <p class="muted" id="seriesNote" style="display:none">Le mot-clé filtre sur le titre (insensible casse/accents).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTIONS + OUTPUT -->
+    <div class="card" id="singleSection">
+      <div class="section-title">Options & Output</div>
+
+      <div class="grid-2 grid">
+        <div>
+          <div class="opt"><input type="checkbox" id="useCustomTitle"><label for="useCustomTitle">Use custom title</label></div>
+          <input id="customTitle" type="text" placeholder="Custom Title (e.g., Mon Titre Exemple Personnaliser)" disabled>
+          <p class="muted">Default: : <code>(title from &lt;name&gt;)</code>. With custom + episode detection : <code>Custom Title Sxx Eyy</code>.</p>
+        </div>
+        <div>
+          <label for="season">Season</label>
+          <input id="season" type="number" value="1" min="1" max="99" disabled>
+          <p class="muted">Used when custom title is enabled.</p>
+        </div>
+      </div>
+
+      <div class="grid-2 grid">
+        <div>
+          <div class="opt"><input type="checkbox" id="singleUseOneLogo"><label for="singleUseOneLogo">Use a single tvg-logo</label></div>
+          <input id="singleLogo" type="url" placeholder="https://host.com/path/logo.jpg" disabled>
+        </div>
+        <div>
+          <div class="opt"><input type="checkbox" id="singleUseGroup"><label for="singleUseGroup">Use group-title</label></div>
+          <input id="singleGroup" type="text" placeholder="My Group" disabled>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="downloadSingle" class="btn">Download playlist</button>
+        <span class="ok" id="okSingle">Playlist generated.</span>
+      </div>
+      <textarea id="previewSingle" class="list" readonly style="min-height:200px"></textarea>
+    </div>
+  </div>
+  <script>
+    const $ = s=>document.querySelector(s);
+
+    // Inputs
+    const xmlInput = $('#xmlInput');
+    const fileInput = $('#fileInput');
+    const baseUrl  = $('#baseUrl');
+
+    // Buttons/info
+    const parseBtn  = $('#parseBtn');
+    const parseInfo = $('#parseInfo');
+
+    // Options
+    const seriesFinderEl = $('#seriesFinder');
+    const seriesHintEl   = $('#seriesHint');
+    const seriesNoteEl   = $('#seriesNote');
+
+    const useCustomTitle = $('#useCustomTitle');
+    const customTitle    = $('#customTitle');
+    const seasonEl       = $('#season');
+
+    const singleUseOneLogo = $('#singleUseOneLogo');
+    const singleLogo       = $('#singleLogo');
+
+    const singleUseGroup = $('#singleUseGroup');
+    const singleGroup    = $('#singleGroup');
+
+    // Output
+    const previewSingle  = $('#previewSingle');
+    const downloadSingle = $('#downloadSingle');
+    const okSingle       = $('#okSingle');
+
+    // ---- UI wiring
+    seriesFinderEl.addEventListener('change', ()=>{
+      seriesHintEl.disabled = !seriesFinderEl.checked;
+      seriesNoteEl.style.display = seriesFinderEl.checked ? 'block' : 'none';
+    });
+    useCustomTitle.addEventListener('change', ()=>{
+      const on = useCustomTitle.checked;
+      customTitle.disabled = !on;
+      seasonEl.disabled = !on;
+      render();
+    });
+    singleUseOneLogo.addEventListener('change', ()=>{
+      const on = singleUseOneLogo.checked;
+      singleLogo.disabled = !on;
+      render();
+    });
+    singleUseGroup.addEventListener('change', ()=>{
+      singleGroup.disabled = !singleUseGroup.checked;
+      render();
+    });
+    [customTitle, seasonEl, singleLogo, singleGroup].forEach(el=>el.addEventListener('input', render));
+
+    fileInput.addEventListener('change', ()=>{
+      const f = fileInput.files?.[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = e=>{ xmlInput.value = String(e.target.result||''); };
+      reader.readAsText(f);
+    });
+
+    parseBtn.addEventListener('click', async ()=>{
+      try{ await parse(); } catch(e){ console.error(e); alert('JS error: '+e.message); }
+    });
+
+    // ---- helpers
+    function normalize(str){
+      return (str||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    }
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function providerLabel(url){
+      try{ const h = new URL(url).hostname.replace(/^www\./,'').toLowerCase();
+        return h.split('.').slice(-2).join('.');
+      }catch(e){ return 'Host'; }
+    }
+    function getText(el, sel){
+      const n = el.querySelector(sel);
+      if(!n) return '';
+      if(n.getAttribute && n.getAttribute('href')) return n.getAttribute('href');
+      return (n.textContent||'').trim();
+    }
+    function detectEpisodeNumber(input){
+      if(!input) return null;
+      const s = String(input);
+      let stem = s;
+      const mfile = s.match(/([A-Za-z0-9_\-\.]+)\.(mkv|mp4|avi|mov|ts|m3u8)\b/i);
+      if(mfile) stem = mfile[1];
+      const hay = stem.toLowerCase();
+      let m = hay.match(/s\s*(\d{1,2})\s*e\s*0*(\d{1,3})/i);
+      if(m) return parseInt(m[2],10);
+      m = hay.match(/(?:^|[_\-.])0*(\d{1,3})(?:end)?(?:$|[^a-z0-9])/i);
+      if(m) return parseInt(m[1],10);
+      m = hay.match(/\be(?:p|pisode)?\s*0*(\d{1,3})\b/i);
+      if(m) return parseInt(m[1],10);
+      return null;
+    }
+
+    // --- NEW: assainissement des & non échappés
+    function sanitizeXml(xml){
+      // remplace tout & qui n’est PAS déjà une entité (&amp; &lt; &gt; &quot; &apos; ou &#...;)
+      return xml.replace(/&(?!#\d+;|#x[0-9a-fA-F]+;|amp;|lt;|gt;|quot;|apos;)/g, '&amp;');
+    }
+
+    // ---- core parse
+    let state = { items: [] }; // {title,url,img}
+
+    async function parse(){
+      parseInfo.textContent = '';
+
+      let raw = (xmlInput.value||'').trim();
+      if(!raw){ alert('Paste XML or upload a file first.'); return; }
+
+      // 1) tentative avec assainissement des &
+      let xml = sanitizeXml(raw);
+      let doc = new DOMParser().parseFromString(xml, 'application/xml');
+
+      // 2) si encore en erreur, on tente en supprimant complètement le bloc <_links>...</_links>
+      if(doc.querySelector('parsererror')){
+        const noLinks = xml.replace(/<\s*_links[\s\S]*?<\/\s*_links\s*>/gi,'');
+        doc = new DOMParser().parseFromString(noLinks, 'application/xml');
+        if(doc.querySelector('parsererror')){
+          alert('Invalid XML. Please check your input.');
+          return;
+        }
+      }
+
+      // <item><name>...</name><linkcode>...</linkcode></item>
+      let itemsEls = [...doc.querySelectorAll('item')];
+      if(!itemsEls.length){ itemsEls = [...doc.querySelectorAll('entry')]; } // atom fallback
+
+      const items = [];
+      const seen = new Set();
+
+      for(const it of itemsEls){
+        let title = getText(it, 'name') || getText(it, 'title') || '';
+        if(!title) continue;
+
+        const linkcode = getText(it, 'linkcode');
+        let fullUrl = '';
+        if(linkcode){
+          const base = (baseUrl.value || '').trim();
+          if(base){
+            const slash = base.endsWith('/') ? '' : '/';
+            fullUrl = base + slash + linkcode;
+          }else{
+            fullUrl = linkcode; // si pas de base, on laisse tel quel
+          }
+        }else{
+          // fallback très large
+          fullUrl = getText(it, 'link');
+          if(!/^https?:\/\//i.test(fullUrl)) fullUrl = '';
+        }
+        if(!fullUrl) continue;
+        if(seen.has(fullUrl)) continue; seen.add(fullUrl);
+
+        // image optionnelle (si jamais le flux en fournit)
+        let img = '';
+        const imgEl = it.querySelector('image, poster, thumbnail, media\\:thumbnail, media\\:content');
+        if(imgEl){
+          img = imgEl.getAttribute('url') || (imgEl.textContent||'').trim();
+          if(img && !/^https?:\/\//i.test(img)) img = '';
+        }
+
+        items.push({ title, url: fullUrl, img });
+      }
+
+      // filtre "Find a TV series"
+      if(seriesFinderEl.checked){
+        const hint = seriesHintEl.value.trim();
+        if(hint){
+          const normHint = normalize(hint).toLowerCase();
+          for(let i=items.length-1;i>=0;i--){
+            if(!normalize(items[i].title).toLowerCase().includes(normHint)){
+              items.splice(i,1);
+            }
+          }
+        }
+      }
+
+      // auto logo si toutes les images sont identiques (et non vides)
+      const uniqImgs = Array.from(new Set(items.map(i=>i.img).filter(Boolean)));
+      if(uniqImgs.length === 1){
+        singleUseOneLogo.checked = true;
+        singleLogo.disabled = false;
+        singleLogo.value = uniqImgs[0];
+      }else{
+        if(!singleUseOneLogo.checked){ singleLogo.disabled = true; singleLogo.value=''; }
+      }
+
+      state.items = items;
+      parseInfo.textContent = `${items.length} items found.`;
+      render();
+    }
+
+    function buildM3U(){
+      const parts = ['#EXTM3U'];
+      const groupOpt = (singleUseGroup.checked && singleGroup.value.trim()) ? ` group-title="${singleGroup.value.trim()}"` : '';
+      const logoOpt  = (singleUseOneLogo.checked && singleLogo.value.trim())   ? ` tvg-logo="${singleLogo.value.trim()}"` : '';
+
+      const useCustom = !!useCustomTitle.checked;
+      const titleBase = (customTitle.value || '').trim();
+      const s = pad2(parseInt(seasonEl.value||'1',10));
+      const hasBase = !!(baseUrl.value && baseUrl.value.trim());
+
+      state.items.forEach((it, idx)=>{
+        const ep = detectEpisodeNumber(it.title) ?? (idx+1);
+        const epStr = pad2(ep);
+
+        let label;
+        if(useCustom && titleBase){
+          // Pas de [Host] si Base Link URL est renseigné
+          label = hasBase ? `${titleBase} S${s} E${epStr}`
+                          : `${titleBase} S${s} E${epStr} [${providerLabel(it.url)}]`;
+        }else{
+          label = it.title; // garder <name>
+        }
+
+        parts.push(`#EXTINF:-1${logoOpt}${groupOpt},${label}`);
+        parts.push(it.url);
+      });
+
+      return parts.join('\n');
+    }
+
+    function render(){
+      okSingle.style.display = 'none';
+      previewSingle.value = buildM3U();
+    }
+
+    downloadSingle.addEventListener('click', ()=>{
+      if(!state.items.length){ alert('No items to download.'); return; }
+      const content = buildM3U();
+      const blob = new Blob([content], {type:'audio/x-mpegurl'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName();
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      okSingle.style.display='inline';
+    });
+
+    function fileName(){
+      const d = new Date();
+      const pad = n=> String(n).padStart(2,'0');
+      return `playlist_${d.getFullYear()}_${pad(d.getMonth()+1)}_${pad(d.getDate())}_${pad(d.getHours())}_${pad(d.getMinutes())}_${pad(d.getSeconds())}.m3u`;
+    }
+  </script>
+</body>
+</html>

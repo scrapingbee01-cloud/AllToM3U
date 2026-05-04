@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All to m3u</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+      color: #333;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 { margin-bottom: 10px; font-size: 2.5rem; }
+    p.subtitle { margin-bottom: 20px; font-size: 1.1rem; color: #666; }
+
+    /* Search bar */
+    .searchbar { position: relative; max-width: 560px; margin: 0 auto 24px; }
+    .searchbar input[type="search"] {
+      width: 100%;
+      padding: 12px 44px 12px 44px;
+      border: 1px solid #ddd;
+      border-radius: 999px;
+      font-size: 16px;
+      outline: none;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .searchbar .icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 18px; opacity: .55; pointer-events: none; }
+    .clear-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; font-size: 16px; cursor: pointer; opacity: .6; display:none; }
+
+    .count { margin-bottom: 10px; color: #888; font-size: 0.95rem; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+    .card { background-color: white; border-radius: 8px; overflow: hidden; text-decoration: none; color: inherit; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s; display: flex; flex-direction: column; height: 100%; }
+    .card:hover { background-color: #fff; box-shadow: 0 8px 16px rgba(0,0,0,0.15); transform: translateY(-5px); cursor: pointer; }
+    .card img { width: 100%; height: auto; display: block; }
+    .card-content { padding: 15px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+    .card-content h3 { margin-bottom: 10px; font-size: 1.2rem; }
+    .card-content p { font-size: 0.95rem; color: #555; flex-grow: 1; }
+
+    .hidden { display: none !important; }
+    .empty-state { display:none; color:#777; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>M3U Converter Tools</h1>
+  <p class="subtitle">Easy-to-use online tools to create or convert your m3u files</p>
+
+  <!-- Search bar -->
+  <div class="searchbar" role="search" aria-label="Tool search">
+    <span class="icon">🔍</span>
+    <input id="search" type="search" placeholder="Search tools…" aria-label="Search tools">
+    <button class="clear-btn" id="clearSearch" title="Clear">✕</button>
+  </div>
+  <p class="count" id="resultCount" aria-live="polite"></p>
+
+  <div class="grid" id="cardsGrid">
+    <a href="single.html" class="card">
+      <img src="images/single.jpg" alt="Add single line">
+      <div class="card-content">
+        <h3>Add single line</h3>
+        <p>Just start creating your first m3u playlist if you don't know where to start.</p>
+      </div>
+    </a>
+
+    <a href="multiple.html" class="card">
+      <img src="images/multiple.jpg" alt="Add multiple lines">
+      <div class="card-content">
+        <h3>Add multiple lines</h3>
+        <p>Manually add a lots of links to your playlist with the numbers.</p>
+      </div>
+    </a>
+
+    <a href="text.html" class="card">
+      <img src="images/text.jpg" alt="Text to m3u">
+      <div class="card-content">
+        <h3>Text to m3u</h3>
+        <p>Paste some text and we'll try to sort and categorize your links from your items.</p>
+      </div>
+    </a>
+
+    <a href="html.html" class="card">
+      <img src="images/html.jpg" alt="HTML to m3u">
+      <div class="card-content">
+        <h3>HTML to m3u</h3>
+        <p>Enter an HTML source code or upload an html file and we will convert it to m3u playlist format.</p>
+      </div>
+    </a>
+
+    <a href="rss.html" class="card">
+      <img src="images/rss.jpg" alt="RSS to m3u">
+      <div class="card-content">
+        <h3>RSS to m3u</h3>
+        <p>Add an RSS feed xml link to convert it to m3u format.</p>
+      </div>
+    </a>
+
+    <a href="sheets.html" class="card">
+      <img src="images/sheets.jpg" alt="Sheets to m3u">
+      <div class="card-content">
+        <h3>Sheets to m3u</h3>
+        <p>Add a link Google Sheets for to convert it to m3u format.</p>
+      </div>
+    </a>
+
+    <a href="tools.html" class="card">
+      <img src="images/tools.jpg" alt="Tool edit m3u">
+      <div class="card-content">
+        <h3>Tool edit m3u</h3>
+        <p>This tool created to edit and delete excess or missing texts.</p>
+      </div>
+    </a>
+
+    <a href="shorts.html" class="card">
+      <img src="images/shorts.jpg" alt="Short URL Free">
+      <div class="card-content">
+        <h3>Short URL Free</h3>
+        <p>Use this tool to shorten links for free.</p>
+      </div>
+    </a>
+
+  </div>
+
+  <div class="empty-state" id="emptyState">No tools match your search.</div>
+
+  <script>
+    const searchInput = document.getElementById('search');
+    const clearBtn = document.getElementById('clearSearch');
+    const grid = document.getElementById('cardsGrid');
+    const cards = Array.from(grid.querySelectorAll('.card'));
+    const countEl = document.getElementById('resultCount');
+    const emptyState = document.getElementById('emptyState');
+
+    // Normalize string: case-insensitive and accent-insensitive
+    const normalize = (str) => (str || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+    // Precompute searchable text for each card (perf)
+    const entries = cards.map(card => {
+      const title = card.querySelector('h3')?.textContent || '';
+      const desc  = card.querySelector('p')?.textContent || '';
+      return { el: card, haystack: normalize(title + ' ' + desc) };
+    });
+
+    function filterNow() {
+      const q = normalize(searchInput.value);
+      let shown = 0;
+      for (const {el, haystack} of entries) {
+        const match = !q || haystack.includes(q);
+        el.classList.toggle('hidden', !match);
+        if (match) shown++;
+      }
+      emptyState.style.display = shown ? 'none' : 'block';
+      clearBtn.style.display = searchInput.value ? 'block' : 'none';
+    }
+
+    // Debounce to improve fluidity while typing
+    function debounce(fn, delay = 120) {
+      let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn.apply(null, args), delay); };
+    }
+    const filterDebounced = debounce(filterNow, 120);
+
+    searchInput.addEventListener('input', filterDebounced, { passive: true });
+    clearBtn.addEventListener('click', () => { searchInput.value = ''; filterNow(); searchInput.focus(); });
+
+    // Initial render
+    filterNow();
+  </script>
+</body>
+</html>

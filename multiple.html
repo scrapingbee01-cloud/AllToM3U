@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M3U – Multiple Lines</title>
+  <style>
+    :root { --bg:#f7f7f8; --card:#fff; --text:#222; --muted:#666; --accent:#0b5fff; --accent-muted:#4f82ff; --border:#e7e7ea; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:980px;margin:40px auto;padding:0 20px}
+    h1{font-size:28px;margin:0 0 6px}
+    p.sub{color:var(--muted);margin:0 0 20px}
+
+    /* breadcrumb */
+    .breadcrumb{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .home-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--accent);font-weight:700}
+    .home-link:hover{opacity:.85}
+    .breadcrumb .sep{color:#b8bfd3}
+    h3.current{margin:0;font-size:16px;color:var(--accent-muted);font-weight:700}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+    .grid{display:grid;grid-template-columns:1fr;gap:14px}
+    @media (min-width:880px){.grid{grid-template-columns:1fr 1fr}}
+    label{font-weight:600;margin-bottom:6px;display:block}
+    .row{display:flex;gap:10px;align-items:center}
+    .row input[type="text"], .row input[type="url"], .row input[type="number"]{flex:1}
+    input[type="text"], input[type="url"], input[type="number"]{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px}
+    input[disabled]{background:#f0f0f2;color:#8a8a92}
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+    .opt{display:flex;align-items:center;gap:10px}
+    .opt input[type="checkbox"]{width:18px;height:18px}
+    .actions{display:flex;gap:12px;align-items:center;margin-top:16px}
+    button{appearance:none;border:0;background:var(--accent);color:#fff;padding:12px 16px;border-radius:10px;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .preview{width:100%;height:220px;border:1px solid var(--border);border-radius:10px;padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#fff}
+    .error{color:#c62828;margin-top:8px;font-size:14px;display:none}
+    .ok{color:#2e7d32;margin-left:8px;font-size:14px;display:none}
+
+    /* Episodes list */
+    .episodes{margin-top:14px;display:grid;grid-template-columns:1fr;gap:10px}
+    @media (min-width:700px){.episodes{grid-template-columns:1fr 1fr}}
+    .ep-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px}
+    .ep-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+    .ep-title{font-weight:700;color:#333;font-size:14px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a class="home-link" href="javascript:void(0)" onclick="history.back()">Home</a>
+      <span class="sep">›</span>
+      <h3 class="current">Multiple lines</h3>
+    </nav>
+
+    <h1>Multiple lines</h1>
+    <p class="sub">This tool allows you to create a playlist if your videos have multiple parts.</p>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label for="title">Title <span style="color:#c62828">*</span></label>
+          <input id="title" type="text" placeholder="e.g. Video Title" required />
+          <div class="hint">Required. Will render as <code>Title Sxx Eyy</code> per episode.</div>
+        </div>
+        <div>
+          <label for="season">Season</label>
+          <input id="season" type="number" value="1" min="1" max="99" />
+          <div class="hint">Default 1. Affects titles and tvg-name suffix (Sxx).</div>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:12px">
+        <div>
+          <label for="episodes">Episodes count</label>
+          <input id="episodes" type="number" value="1" min="1" max="100" />
+          <div class="hint">From 1 to 100. Generates that many link fields below.</div>
+        </div>
+        <div>
+          <div class="opt">
+            <input type="checkbox" id="useLogo" />
+            <label for="useLogo" style="margin:0">Use tvg-logo</label>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <input id="logo" type="url" placeholder="https://host.com/path/logo.jpg" disabled />
+          </div>
+          <div class="hint">Optional. Include <code>tvg-logo="..."</code> on each episode.</div>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:12px">
+        <div>
+          <div class="opt">
+            <input type="checkbox" id="useGroup" />
+            <label for="useGroup" style="margin:0">Use group-title</label>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <input id="group" type="text" placeholder="My Group" disabled />
+          </div>
+          <div class="hint">Optional. Include <code>group-title="..."</code> on each episode.</div>
+        </div>
+        <div>
+          <div class="opt">
+            <input type="checkbox" id="useName" />
+            <label for="useName" style="margin:0">Use tvg-name (slug base)</label>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <input id="name" type="text" placeholder="video-title" disabled />
+          </div>
+          <div class="hint">When enabled, auto-fills from Title in lowercase with spaces → <code>-</code>. Actual tvg-name becomes <code>name-Sxx-Eyy</code>.</div>
+        </div>
+      </div>
+
+      <div class="episodes" id="episodesContainer"></div>
+
+      <div class="actions">
+        <button id="generateBtn">Download playlist</button>
+        <span class="ok" id="okMsg">Playlist generated.</span>
+      </div>
+      <div class="error" id="errorMsg">Please fill Title and all episode Link URLs (valid).</div>
+    </div>
+
+    <p class="sub" style="margin:14px 0 6px">Preview</p>
+    <textarea id="preview" class="preview" readonly>#EXTM3U\n</textarea>
+  </div>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const titleEl   = $('#title');
+    const seasonEl  = $('#season');
+    const episodesEl= $('#episodes');
+    const useLogoEl = $('#useLogo');
+    const logoEl    = $('#logo');
+    const useGroupEl= $('#useGroup');
+    const groupEl   = $('#group');
+    const useNameEl = $('#useName');
+    const nameEl    = $('#name');
+    const episodesContainer = $('#episodesContainer');
+    const previewEl = $('#preview');
+    const errorMsg  = $('#errorMsg');
+    const okMsg     = $('#okMsg');
+    const generateBtn = $('#generateBtn');
+
+    let autoName = true;
+
+    function slugify(str){
+      return (str||'')
+        .toString()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g,'-')
+        .replace(/^-+|-+$/g,'')
+        .replace(/-{2,}/g,'-');
+    }
+    const pad2 = n => String(n).padStart(2,'0');
+
+    function toggle(checkbox, input){
+      input.disabled = !checkbox.checked;
+      if(checkbox.checked && input===nameEl){ autoName = true; nameEl.value = slugify(titleEl.value); }
+      if(!checkbox.checked){ input.value=''; }
+      render();
+    }
+
+    useLogoEl.addEventListener('change', ()=>toggle(useLogoEl, logoEl));
+    useGroupEl.addEventListener('change', ()=>toggle(useGroupEl, groupEl));
+    useNameEl.addEventListener('change', ()=>toggle(useNameEl, nameEl));
+
+    nameEl.addEventListener('input', ()=>{ autoName = false; render(); });
+    titleEl.addEventListener('input', ()=>{ if(useNameEl.checked && autoName){ nameEl.value = slugify(titleEl.value); } render(); });
+    seasonEl.addEventListener('input', render);
+    episodesEl.addEventListener('input', ()=>{ buildEpisodeFields(); render(); });
+
+    function buildEpisodeFields(){
+      const count = clamp(parseInt(episodesEl.value||'1',10),1,100);
+      // create or trim children
+      const current = episodesContainer.children.length;
+      // add new
+      for(let i=current;i<count;i++){
+        const idx=i+1; const ep=pad2(idx);
+        const card = document.createElement('div');
+        card.className='ep-card';
+        card.innerHTML = `
+          <div class="ep-head">
+            <div class="ep-title">Episode ${ep} — <span class="dyn-title"></span></div>
+          </div>
+          <label>Link URL <span style="color:#c62828">*</span></label>
+          <input type="url" class="ep-url" placeholder="https://example.com/video-${ep}.mp4" />
+        `;
+        episodesContainer.appendChild(card);
+      }
+      // remove extra
+      for(let i=current;i>count;i--){ episodesContainer.removeChild(episodesContainer.lastElementChild); }
+      // update dynamic titles
+      updateEpisodeTitles();
+      // attach listeners
+      episodesContainer.querySelectorAll('.ep-url').forEach(inp=>{ inp.addEventListener('input', render); });
+    }
+
+    function clamp(n,min,max){ return Math.min(Math.max(n,min),max); }
+
+    function updateEpisodeTitles(){
+      const s = pad2(parseInt(seasonEl.value||'1',10));
+      const base = (titleEl.value||'').trim();
+      [...episodesContainer.children].forEach((card,i)=>{
+        const ep = pad2(i+1);
+        card.querySelector('.dyn-title').textContent = `${base? base+' ':''}S${s} E${ep}`;
+      });
+    }
+
+    function getEpisodeLinks(){
+      return [...episodesContainer.querySelectorAll('.ep-url')].map(inp=>inp.value.trim());
+    }
+
+    function validUrl(u){ try{ new URL(u); return true; }catch(e){ return false; } }
+
+    function buildM3U(){
+      const title = (titleEl.value||'').trim();
+      const season = pad2(parseInt(seasonEl.value||'1',10));
+      const links = getEpisodeLinks();
+      const parts = ['#EXTM3U'];
+
+      const attrs = [];
+      if(useLogoEl.checked && logoEl.value.trim()) attrs.push(`tvg-logo="${logoEl.value.trim()}"`);
+      if(useGroupEl.checked && groupEl.value.trim()) attrs.push(`group-title="${groupEl.value.trim()}"`);
+
+      const nameBase = (useNameEl.checked && nameEl.value.trim()) ? nameEl.value.trim() : null;
+
+      links.forEach((url, i)=>{
+        const ep = pad2(i+1);
+        const nameAttr = nameBase ? ` tvg-name="${nameBase}-s${season}-e${ep}"` : '';
+        const attrStr = `${attrs.length? ' '+attrs.join(' ') : ''}${nameAttr}`;
+        const lineTitle = `${title} S${season} E${ep}`;
+        parts.push(`#EXTINF:-1${attrStr},${lineTitle}`);
+        parts.push(url||'');
+      });
+
+      return parts.join('\n');
+    }
+
+    function render(){
+      updateEpisodeTitles();
+      previewEl.value = buildM3U();
+      okMsg.style.display = 'none';
+      errorMsg.style.display = 'none';
+    }
+
+    function fileName(){
+      const d = new Date();
+      const pad = n=> String(n).padStart(2,'0');
+      return `playlist_${d.getFullYear()}_${pad(d.getMonth()+1)}_${pad(d.getDate())}_${pad(d.getHours())}_${pad(d.getMinutes())}_${pad(d.getSeconds())}.m3u`;
+    }
+
+    generateBtn.addEventListener('click', ()=>{
+      const title = titleEl.value.trim();
+      const links = getEpisodeLinks();
+      const invalid = links.filter(u=>!u || !validUrl(u)).length;
+      if(!title || invalid>0){
+        errorMsg.textContent = !title ? 'Please fill Title.' : `Please fill all ${links.length} episode Link URLs with valid addresses.`;
+        errorMsg.style.display = 'block';
+        okMsg.style.display = 'none';
+        return;
+      }
+      const content = buildM3U();
+      const blob = new Blob([content], {type:'audio/x-mpegurl'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName();
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      okMsg.style.display = 'inline';
+    });
+
+    // initial
+    buildEpisodeFields();
+    render();
+  </script>
+</body>
+</html>
