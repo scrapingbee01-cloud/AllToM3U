@@ -232,13 +232,13 @@
       const dataLines = lines.filter((_,i)=>i!==headerIdx && !/^#/.test(lines[i]));
 
       const items = [];
-      let filmCount=0, serieCount=0;
+      let filmCount=0, serieCount=0, musiqueCount=0;
 
       for(const line of dataLines){
         const cols = line.split(';');
         if(cols.length < 12) continue;
 
-        const cat = (cols[0]||'').toLowerCase().trim(); // film / serie
+        const cat = (cols[0]||'').toLowerCase().trim(); // film / serie / musique
         const tmdbId = (cols[1]||'').trim();            // <-- TMDB column
         const title = (cols[2]||'').trim();
         let saison = cols[3] ? parseInt(cols[3],10) : NaN;
@@ -275,11 +275,22 @@
             const url = baseURL ? (baseURL + token) : token;
             items.push({cat:'serie', tmdbId, baseTitle:title, season:saison, episode:ep, res, url});
           }
+        } else if(cat === 'musique'){
+          musiqueCount++;
+          const resList = resField.startsWith('[') ? parseArrayLike(resField) : (resField ? [resField] : []);
+          const tokens = parseArrayLike(urlsField);
+          const n = Math.min(tokens.length, resList.length || tokens.length);
+          for(let i=0;i<n;i++){
+            const token = tokens[i] || '';
+            const res = resList[i] || '';
+            const url = baseURL ? (baseURL + token) : token;
+            items.push({cat:'musique', tmdbId, baseTitle:title, season:null, episode:null, res, url});
+          }
         }
       }
 
       state = { items, baseURL };
-      parseInfo.textContent = `${items.length} entries built (${filmCount} film lines, ${serieCount} serie lines).`;
+      parseInfo.textContent = `${items.length} entries built (${filmCount} film lines, ${serieCount} serie lines, ${musiqueCount} musique lines).`;
       render();
     }
 
@@ -312,7 +323,7 @@
           }
         }
 
-        const idOpt = (it.tmdbId && it.tmdbId.trim()) ? ` tvg-id="tmdb-${it.tmdbId.trim()}"` : '';
+        const idOpt = (it.tmdbId && it.tmdbId.trim()) ? (it.cat === 'musique' ? ` tvg-id="${it.tmdbId.trim()}"` : ` tvg-id="tmdb-${it.tmdbId.trim()}"`) : '';
         parts.push(`#EXTINF:-1${idOpt}${logoOpt}${groupOpt},${label}`);
         parts.push(it.url);
       });
