@@ -323,7 +323,7 @@
           }
         }
 
-        const idOpt = (it.tmdbId && it.tmdbId.trim()) ? (it.cat === 'musique' ? ` tvg-id="${it.tmdbId.trim()}"` : ` tvg-id="tmdb-${it.tmdbId.trim()}"`) : '';
+        const idOpt = (it.tmdbId && it.tmdbId.trim()) ? (it.cat === 'musique' ? ` tvg-id="${it.tmdbId.trim()}"` : ` tvg-id="${it.tmdbId.trim()}"`) : '';
         parts.push(`#EXTINF:-1${idOpt}${logoOpt}${groupOpt},${label}`);
         parts.push(it.url);
       });
