@@ -61,7 +61,7 @@
       <div class="grid-2 grid">
         <div>
           <label for="textInput">Paste TEXT</label>
-          <textarea id="textInput" placeholder="CAT;TMDB;TITLE;SAISON;GROUPES;CAST;DIRECTOR;NETWORK;YEAR;GENRES;RES;URLS=https://..."></textarea>
+          <textarea id="textInput" placeholder="CAT;TMDB;TITLE;SAISON;GROUPES;CAST;DIRECTOR;NETWORK;YEAR;GENRES;RES;URLS=https://...  OR  ...;RES;SIZE;https://..."></textarea>
         </div>
         <div>
           <label for="fileInput">Or upload .txt / .csv / .html</label>
@@ -179,10 +179,28 @@
     function normalize(str){
       return (str||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
     }
-    // Parse header base URL: "...;URLS=https://sample-host.com/v/"
+    // Parse header base URL.
+    // Supported:
+    // 1) ...;RES;URLS=https://sample-host.com/v/
+    // 2) ...;RES;SIZE;https://sample-host.com/v/
+    // 3) ...;RES;SIZE;URLS=https://sample-host.com/v/
     function extractBaseURL(headerLine){
       const m = headerLine.match(/URLS\s*=\s*([^\s;]+)/i);
-      return m ? m[1].trim() : '';
+      if(m) return m[1].trim();
+
+      const cols = headerLine.split(';').map(v => v.trim());
+      for(let i = cols.length - 1; i >= 0; i--){
+        if(/^https?:\/\//i.test(cols[i])){
+          return cols[i];
+        }
+      }
+      return '';
+    }
+
+    function headerHasSize(headerLine){
+      return headerLine
+        .split(';')
+        .some(col => col.trim().toUpperCase() === 'SIZE');
     }
     function parseArrayLike(text){
       if(!text) return [];
@@ -225,10 +243,18 @@
       if(!lines.length){ alert('No lines found.'); return; }
 
       // header & base URL
-      let headerIdx = lines.findIndex(l => /URLS\s*=/.test(l));
+      // Accept both:
+      // CAT;...;RES;URLS=https://...
+      // CAT;...;RES;SIZE;https://...
+      let headerIdx = lines.findIndex(l =>
+        /URLS\s*=/.test(l) ||
+        (/(^|;)\s*SIZE\s*(;|$)/i.test(l) && /https?:\/\//i.test(l))
+      );
       if(headerIdx === -1) headerIdx = 0;
+
       const header = lines[headerIdx];
       const baseURL = extractBaseURL(header) || '';
+      const hasSizeColumn = headerHasSize(header);
       const dataLines = lines.filter((_,i)=>i!==headerIdx && !/^#/.test(lines[i]));
 
       const items = [];
@@ -236,7 +262,11 @@
 
       for(const line of dataLines){
         const cols = line.split(';');
-        if(cols.length < 12) continue;
+
+        // Old format: RES is column 10, URLS is column 11.
+        // New format: RES is column 10, SIZE is column 11, URLS is column 12.
+        const urlColumnIndex = hasSizeColumn ? 12 : 11;
+        if(cols.length <= urlColumnIndex) continue;
 
         const cat = (cols[0]||'').toLowerCase().trim(); // film / serie / musique
         const tmdbId = (cols[1]||'').trim();            // <-- TMDB column
@@ -245,7 +275,8 @@
         if(!Number.isFinite(saison) || saison<=0) saison = 1;
 
         const resField = (cols[10]||'').trim();
-        const urlsField = (cols[11]||'').trim();
+        const sizeField = hasSizeColumn ? (cols[11]||'').trim() : ''; // ignored for now
+        const urlsField = (cols[urlColumnIndex]||'').trim();
 
         // Series keyword filter (on TITLE)
         if(seriesFinderEl.checked){
